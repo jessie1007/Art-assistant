@@ -1,0 +1,7 @@
+#list don't need to push to github and track in github, like environment
+
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+data/raw/
