@@ -1,0 +1,26 @@
+##What goes into each “bin” (quick refresher)
+
+src/: reusable Python modules (e.g., src/analysis/light_shadow.py, src/models/clip_index.py)
+
+notebooks/: experiments & EDA (01_explore.ipynb, 02_baselines.ipynb)
+
+app/: your Streamlit files (app/app.py, app/components.py)
+
+tests/: pytest files (tests/test_clip_index.py)
+
+docs/: images, diagrams, demo GIF (docs/demo.gif)
+
+data/raw, data/processed, models/: local artifacts (gitignored)
+
+README.md: project overview for others
+
+JOURNAL.md: your ongoing log
+Write today's journal: ./journal.sh "Your goal for today"
+
+
+Flow
+1. create issue
+2. work
+3. commit
+4. Done
+
