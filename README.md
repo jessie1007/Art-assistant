@@ -56,3 +56,14 @@ pytest -q
 
 # 4) Launch app
 streamlit run app/app.py
+
+## ✅ Week 1 — Retrieval MVP (Completed)
+
+- Collected sample oil paintings from The Met Open Access.
+- Generated CLIP embeddings (`embeddings.npy`) and saved metadata (`artwork_index.jsonl`).
+- Built a FAISS index for fast nearest-neighbor search.
+- Created a **Streamlit app** (`app_streamlit_retrieval.py`):
+  - Upload a painting → embed with CLIP → search FAISS → show top-5 similar artworks.
+  - Displays **title, artist, year, style**, and similarity score.
+
+### Run Streamlit App
