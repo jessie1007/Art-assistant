@@ -7,3 +7,15 @@ __pycache__/
 data/raw/
 data/images
 
+# Ignore raw data & generated files
+data/images/
+data/corpus/
+data/embeddings_samples/
+data/index_samples/
+data/samples/
+
+# Ignore virtual env
+.venv/
+
+# Ignore system files
+.DS_Store
