@@ -1,0 +1,21 @@
+seed: 42
+device: "cpu"  # or "cuda" if you have GPU
+mode: "zero_shot"
+
+labels:
+  - Baroque
+  - Rococo
+  - Romanticism
+  - Neoclassicism
+  - Realism
+  - Impressionism
+  - Post-Impressionism
+  - Symbolism
+  - Expressionism
+  - Fauvism
+  - Cubism
+  - Surrealism
+  - Abstract Expressionism
+  - Pop Art
+  - Minimalism
+  - Contemporary
