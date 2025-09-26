@@ -47,27 +47,25 @@ def embed_image(img: Image.Image, model, proc, device) -> np.ndarray:
 # =====================================================================
 
 def render_retrieval_tab(
+    img,  # <-- shared image comes from the launcher
     index_path: str = "data/index_samples/index.faiss",
     meta_path: str  = "data/embeddings_samples/artwork_index.jsonl",
     topk: int = 5,
 ):
-    """Render the Retrieval UI (no sidebars here; pass params from your launcher)."""
-    uploaded = st.file_uploader(
-        "Upload a painting (jpg/png) for retrieval",
-        type=["jpg","jpeg","png"],
-        key="retrieval_tab_upload",  # unique key to avoid collisions
-    )
-    if not uploaded:
-        st.info("Upload an image to see similar results.")
+    if img is None:
+        st.info("Upload an image above to see similar results.")
         return
 
-    query = Image.open(uploaded)
-    st.image(query, caption="Query", use_container_width=True)
+    st.subheader("Retrieval results")
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        st.image(img, caption="Query", width=800)
+
 
     model, proc, device = load_model()
     index, metas = load_index_and_meta(index_path, meta_path)
 
-    q = embed_image(query, model, proc, device).reshape(1, -1)
+    q = embed_image(img, model, proc, device).reshape(1, -1)
     faiss.normalize_L2(q)
     D, I = index.search(q, topk)
 
@@ -91,20 +89,15 @@ def render_retrieval_tab(
 
 
 def render_value_tab(
+    img,
     k_values: int = 5,
     show_grid: bool = True,
 ):
     """Render the Value Studies UI (no sidebars here; pass params from your launcher)."""
-    up = st.file_uploader(
-        "Upload painting (jpg/png) for value study",
-        type=["jpg","jpeg","png"],
-        key="value_tab_upload",  # unique key to avoid collisions
-    )
-    if not up:
-        st.info("Upload an image to analyze values.")
+    if img is None:
+        st.info("Upload an image above to analyze values.")
         return
-
-    img = Image.open(up).convert("RGB")
+    
     gray = to_gray_np(img)
     poster, centers = posterize_k(gray, k_values)
     dead = flat_mid_gray(gray)

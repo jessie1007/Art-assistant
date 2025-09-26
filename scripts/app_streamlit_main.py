@@ -1,4 +1,5 @@
 import sys, pathlib
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -7,16 +8,20 @@ import streamlit as st
 import scripts.app_streamlit_retrieval as retr
 import scripts.app_streamlit_style as style
 import yaml, sys, pathlib
-
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+from PIL import Image
 
 cfg = yaml.safe_load(open(ROOT / "configs" / "style_v1.yaml"))
 labels = cfg["labels"]; device = cfg.get("device", "cpu")
 
 st.set_page_config(page_title="🎨 Art Assistant", layout="wide")
 st.title("🎨 Art Assistant")
+
+# ---- Global uploader (single place) ----
+uploaded = st.file_uploader("Upload a painting (jpg/png)", type=["jpg","jpeg","png"], key="global_upload")
+img = Image.open(uploaded).convert("RGB") if uploaded else None
+#if img:
+    #st.image(img, caption="Current image (shared across tabs)", use_container_width=True)
+
 
 with st.sidebar:
     st.header("Retrieval Settings")
@@ -29,8 +34,8 @@ with st.sidebar:
 
 tab1, tab2, tab3 = st.tabs(["🔎 Retrieval", "🧪 Value Studies", "🎭 Style Classifier"])
 with tab1:
-    retr.render_retrieval_tab(index_path=index_path, meta_path=meta_path, topk=topk)
+    retr.render_retrieval_tab(img=img, index_path=index_path, meta_path=meta_path, topk=topk)
 with tab2:
-    retr.render_value_tab(k_values=k_values, show_grid=show_grid)
+    retr.render_value_tab(img=img, k_values=k_values, show_grid=show_grid)
 with tab3:
-    style.render_style_tab(labels=labels, device=device)
+    style.render_style_tab(img=img, labels=labels, device=device)
