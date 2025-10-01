@@ -1,5 +1,3 @@
-# scripts/app_streamlit_style.py
-# --- make project root importable ---
 import sys, pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[1]   # project root (…/Art-assistant)
 if str(ROOT) not in sys.path:
