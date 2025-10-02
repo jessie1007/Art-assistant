@@ -73,7 +73,7 @@ def render_retrieval_tab(
     index, metas = load_index_and_meta(index_path, meta_path)
 
     # Embed + search
-    q = embed_image(query, model, proc, device).reshape(1, -1)
+    q = embed_image(img, model, proc, device).reshape(1, -1)
     faiss.normalize_L2(q)  # cosine via inner product
     D, I = index.search(q, topk)
 
@@ -96,5 +96,4 @@ def render_retrieval_tab(
                 col.write("(missing file)")
         else:
             col.write("(invalid index)")
-else:
-    st.info("Upload an image to see similar results.")
+

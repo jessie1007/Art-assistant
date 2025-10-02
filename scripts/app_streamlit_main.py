@@ -6,6 +6,7 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st
 import scripts.app_streamlit_retrieval as retr
+import scripts.value_tools as value
 import scripts.app_streamlit_style as style
 import scripts.app_streamlit_recom as recom
 import yaml, sys, pathlib
@@ -38,7 +39,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["🔎 Retrieval", "🧪 Value Studies", "🎭 
 with tab1:
     retr.render_retrieval_tab(img=img, index_path=index_path, meta_path=meta_path, topk=topk)
 with tab2:
-    retr.render_value_tab(img=img, k_values=k_values, show_grid=show_grid)
+    value.render_value_tab(img=img, k_values=k_values, show_grid=show_grid)
 with tab3:
     style.render_style_tab(img=img, labels=labels, device=device)
 with tab4:
