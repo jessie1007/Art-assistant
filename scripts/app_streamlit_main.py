@@ -6,7 +6,9 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st
 import scripts.app_streamlit_retrieval as retr
+import scripts.value_tools as value
 import scripts.app_streamlit_style as style
+import scripts.app_streamlit_recom as recom
 import yaml, sys, pathlib
 from PIL import Image
 
@@ -26,16 +28,25 @@ img = Image.open(uploaded).convert("RGB") if uploaded else None
 with st.sidebar:
     st.header("Retrieval Settings")
     index_path = st.text_input("FAISS index path", "data/index_samples/index.faiss", key="idx")
+    #meta_path  = st.text_input("Metadata path", "data/index_samples/meta.npy", key="meta")
     meta_path  = st.text_input("Metadata JSONL path", "data/embeddings_samples/artwork_index.jsonl", key="meta")
     topk       = st.slider("Top-K", 1, 10, 5, key="topk")
     st.header("Value Study Settings")
     k_values   = st.slider("Value K (bands)", 3, 8, 5, key="kvals")
     show_grid  = st.checkbox("Show thirds grid + COM", value=True, key="grid")
 
-tab1, tab2, tab3 = st.tabs(["🔎 Retrieval", "🧪 Value Studies", "🎭 Style Classifier"])
+tab1, tab2, tab3, tab4 = st.tabs(["🔎 Retrieval", "🧪 Value Studies", "🎭 Style Classifier", "🎨 Recommend & Critique"])
 with tab1:
     retr.render_retrieval_tab(img=img, index_path=index_path, meta_path=meta_path, topk=topk)
 with tab2:
-    retr.render_value_tab(img=img, k_values=k_values, show_grid=show_grid)
+    value.render_value_tab(img=img, k_values=k_values, show_grid=show_grid)
 with tab3:
     style.render_style_tab(img=img, labels=labels, device=device)
+with tab4:
+    recom.render_recom_tab(
+        img=img,
+        labels=labels,
+        device=device,
+        index_path=index_path,
+        meta_path=meta_path
+    )
