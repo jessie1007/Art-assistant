@@ -1,0 +1,18 @@
+# configs/defaults.yaml
+device: "auto"                      # "cpu" | "cuda" | "auto"
+clip_model: "openai/clip-vit-base-patch32"
+
+paths:
+  parquet: "data/corpus/samples20.parquet"
+  embeddings_dir: "data/embeddings_samples"
+  index_dir: "data/index_samples"
+
+retrieval:
+  topk_initial: 20
+  final_k: 5
+
+rerank:
+  use_query_adaptive: true
+
+feedback:
+  thirds_radius_pct: 0.08         # ~8% of min(W,H) for thirds vicinity
