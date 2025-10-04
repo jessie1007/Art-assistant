@@ -35,6 +35,7 @@ with st.sidebar:
     k_values   = st.slider("Value K (bands)", 3, 8, 5, key="kvals")
     show_grid  = st.checkbox("Show thirds grid + COM", value=True, key="grid")
 
+
 tab1, tab2, tab3, tab4 = st.tabs(["🔎 Retrieval", "🧪 Value Studies", "🎭 Style Classifier", "🎨 Recommend & Critique"])
 with tab1:
     retr.render_retrieval_tab(img=img, index_path=index_path, meta_path=meta_path, topk=topk)

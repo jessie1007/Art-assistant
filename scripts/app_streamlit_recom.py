@@ -20,6 +20,10 @@ from feedback_tool import interpret_feedback
 # ============================================================
 # Public API: render_recom_tab (used in main launcher)
 # ============================================================
+import ui_legend as ui
+
+
+
 def render_recom_tab(
     img,
     labels=None,
@@ -32,6 +36,7 @@ def render_recom_tab(
 ):
     """Render the Recommend & Critique UI using the shared image from the launcher."""
     st.header("🎨 Recommend & Critique")
+
 
     if img is None:
         st.info("Upload an image above to get recommendations and feedback.")
@@ -82,6 +87,7 @@ def render_recom_tab(
         "grad_mag_mean": grad_mag_mean,
     }
 
+    
     # --- Build candidates (lookup meta per id) ---
     cands = []
     for _id, s in zip(cand_ids, cand_sims):
@@ -118,8 +124,6 @@ def render_recom_tab(
     if show_feedback:
         st.write("### Feedback")
         fb = make_feedback(np.array(img))
-        st.json(fb)
-        fb = make_feedback(np.array(img))
         interp = interpret_feedback(fb)
 
         # Badges + short summary
@@ -138,12 +142,11 @@ def render_recom_tab(
         st.write("#### Suggested edits")
         for s in interp["suggestions"]:
             st.write(f"• {s}")
+            #show legend
 
-        # (Keep the raw JSON behind a toggle)
-        #with st.expander("See raw metrics"):
-        #    st.json(fb)
-
-
+    ui.render_legend_expander()
+    with st.expander("Raw metrics", expanded=False):
+        st.json(fb)
 
 # ============================================================
 # Standalone runner (so you can run this file by itself too)
