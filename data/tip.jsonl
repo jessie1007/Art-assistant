@@ -1,0 +1,19 @@
+{"id":"comp-thirds-flex",
+ "tags":["composition","thirds","flexible"],
+ "when":{"thirds_score<":0.45},
+ "tip":"Rule-of-thirds is just one option. Centered or axial symmetry can work if you control edge weight and contrast away from the axis."}
+
+{"id":"comp-dynamic-balance",
+ "tags":["composition","balance","variety"],
+ "when":{"entropy>":18.0},ß
+ "tip":"Attention feels diffuse. Try dynamic balance: a larger, softer mass countered by a smaller, high-contrast accent near the focal path."}
+
+{"id":"value-focal-pop",
+ "tags":["value","contrast","focal"],
+ "when":{"focal_local_contrast<":0.12},
+ "tip":"Increase separation at the focal point—sharper edges or a 1–2 value step jump around the subject."}
+
+{"id":"color-achromatic",
+ "tags":["color","muted","achromatic"],
+ "when":{"sat_mean<":0.12},
+ "tip":"Palette reads achromatic. If intentional, lean into edge quality and shape design; if not, introduce a small high-chroma accent."}
