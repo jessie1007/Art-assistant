@@ -15,6 +15,7 @@ from rerank_tools import hue_hist, texture_vec, combine_scores
 from feedback_tool import make_feedback
 from faiss_utils import load_faiss_index, id_to_meta, search_index
 from feedback_tool import interpret_feedback
+from scripts.rag_engine import load_tips, retrieve_tips
 
 
 # ============================================================
@@ -131,6 +132,7 @@ def render_recom_tab(
         cols[0].metric("Value key", interp["ratings"]["value_key"])
         cols[1].metric("Contrast",   interp["ratings"]["contrast"])
         cols[2].metric("Saturation", interp["ratings"]["saturation"])
+
         st.caption(interp["summary"])
         if interp["badges"]:
             st.write(" • ".join(f"`{b}`" for b in interp["badges"]))
@@ -146,6 +148,35 @@ def render_recom_tab(
 
     ui.render_legend_expander()
     with st.expander("Raw metrics", expanded=False):
+        st.json(fb)
+
+
+    # build facts that align with your rules
+    facts = {
+        "thirds_score": float(fb["composition"].get("thirds_score", 0.0)),
+        "entropy":      float(fb["composition"].get("entropy", 0.0)),
+        "sat_mean":     float(fb["color"].get("saturation_mean", 0.0)),
+        # simple focal contrast proxy: local contrast near COM vs global
+        "focal_local_contrast": float(interp.get("focal_local_contrast", 0.0)) if "focal_local_contrast" in interp else 0.0,
+    }
+
+    tips_db = load_tips()
+    tips    = retrieve_tips(facts, tips_db)
+
+    st.write("#### Curated tips (RAG)")
+    if tips:
+        for t in tips:
+            st.write(f"• {t}")
+    else:
+        st.info("No matching tips yet — add some to data/tips/tips.jsonl")
+
+    # 3) Final critique (no LLM): your summary + selected tips
+    st.write("#### Final critique")
+    final_text = interp["summary"] + ("\n\n" + " ".join(tips) if tips else "")
+    st.write(final_text)
+
+    # 4) Raw metrics behind a toggle only
+    with st.expander("See raw metrics", expanded=False):
         st.json(fb)
 
 # ============================================================
