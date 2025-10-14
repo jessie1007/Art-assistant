@@ -250,4 +250,148 @@ Untracked files:
 no changes added to commit (use "git add" and/or "git commit -a")
 [1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004hggit .add    add-A[?2004l
 git: 'add-A' is not a git command. See 'git --help'.
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004hggit add -a  -A[?2004l
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004hggit commit -'feat: add Rag e engeen    gine'[?2004l
+error: unknown switch `f'
+usage: git commit [-a | --interactive | --patch] [-s] [-v] [-u<mode>] [--amend]
+                  [--dry-run] [(-c | -C | --squash) <commit> | --fixup [(amend|reword):]<commit>)]
+                  [-F <file> | -m <msg>] [--reset-author] [--allow-empty]
+                  [--allow-empty-message] [--no-verify] [-e] [--author=<author>]
+                  [--date=<date>] [--cleanup=<mode>] [--[no-]status]
+                  [-i | -o] [--pathspec-from-file=<file> [--pathspec-file-nul]]
+                  [(--trailer <token>[(=|:)<value>])...] [-S[<keyid>]]
+                  [--] [<pathspec>...]
+
+    -q, --quiet           suppress summary after successful commit
+    -v, --verbose         show diff in commit message template
+
+Commit message options
+    -F, --file <file>     read message from file
+    --author <author>     override author for commit
+    --date <date>         override date for commit
+    -m, --message <message>
+                          commit message
+    -c, --reedit-message <commit>
+                          reuse and edit message from specified commit
+    -C, --reuse-message <commit>
+                          reuse message from specified commit
+    --fixup [(amend|reword):]commit
+                          use autosquash formatted message to fixup or amend/reword specified commit
+    --squash <commit>     use autosquash formatted message to squash specified commit
+    --reset-author        the commit is authored by me now (used with -C/-c/--amend)
+    --trailer <trailer>   add custom trailer(s)
+    -s, --signoff         add a Signed-off-by trailer
+    -t, --template <file>
+                          use specified template file
+    -e, --edit            force edit of commit
+    --cleanup <mode>      how to strip spaces and #comments from message
+    --status              include status in commit message template
+    -S, --gpg-sign[=<key-id>]
+                          GPG sign commit
+
+Commit contents options
+    -a, --all             commit all changed files
+    -i, --include         add specified files to index for commit
+    --interactive         interactively add files
+    -p, --patch           interactively add changes
+    -o, --only            commit only specified files
+    -n, --no-verify       bypass pre-commit and commit-msg hooks
+    --dry-run             show what would be committed
+    --short               show status concisely
+    --branch              show branch information
+    --ahead-behind        compute full ahead/behind values
+    --porcelain           machine-readable output
+    --long                show status in long format (default)
+    -z, --null            terminate entries with NUL
+    --amend               amend previous commit
+    --no-post-rewrite     bypass post-rewrite hook
+    -u, --untracked-files[=<mode>]
+                          show untracked files, optional modes: all, normal, no. (Default: all)
+    --pathspec-from-file <file>
+                          read pathspec from file
+    --pathspec-file-nul   with --pathspec-from-file, pathspec elements are separated with NUL character
+
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004hgit commit -'feat: add Rag engine'[P[21C [22D"feat: add Rag engine'[21D[1Cm"feat: add Rag engine'[22D[1C[P[21C [22D feat: add Rag engine'[21D'feat: add Rag engine'[21D[?2004l
+[main 08520b3] feat: add Rag engine
+ 4 files changed, 346 insertions(+)
+ create mode 100644 data/tip.jsonl
+ create mode 100644 scripts/rag_engine.py
+ create mode 100644 typescript
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004hggit push origion   n main[?2004l
+Enumerating objects: 12, done.
+Counting objects:   8% (1/12)Counting objects:  16% (2/12)Counting objects:  25% (3/12)Counting objects:  33% (4/12)Counting objects:  41% (5/12)Counting objects:  50% (6/12)Counting objects:  58% (7/12)Counting objects:  66% (8/12)Counting objects:  75% (9/12)Counting objects:  83% (10/12)Counting objects:  91% (11/12)Counting objects: 100% (12/12)Counting objects: 100% (12/12), done.
+Delta compression using up to 8 threads
+Compressing objects:  12% (1/8)Compressing objects:  25% (2/8)Compressing objects:  37% (3/8)Compressing objects:  50% (4/8)Compressing objects:  62% (5/8)Compressing objects:  75% (6/8)Compressing objects:  87% (7/8)Compressing objects: 100% (8/8)Compressing objects: 100% (8/8), done.
+Writing objects:  12% (1/8)Writing objects:  25% (2/8)Writing objects:  37% (3/8)Writing objects:  50% (4/8)Writing objects:  62% (5/8)Writing objects:  75% (6/8)Writing objects:  87% (7/8)Writing objects: 100% (8/8)Writing objects: 100% (8/8), 5.35 KiB | 2.68 MiB/s, done.
+Total 8 (delta 3), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas:   0% (0/3)[Kremote: Resolving deltas:  33% (1/3)[Kremote: Resolving deltas:  66% (2/3)[Kremote: Resolving deltas: 100% (3/3)[Kremote: Resolving deltas: 100% (3/3), completed with 3 local objects.[K
+To https://github.com/jessie1007/Art-assistant
+   2b900fb..08520b3  main -> main
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004hggit statsu[?2004l
+git: 'statsu' is not a git command. See 'git --help'.
+
+The most similar command is
+	status
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004hggit status[?2004l
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	[31mmodified:   typescript[m
+
+no changes added to commit (use "git add" and/or "git commit -a")
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004hgit statussupush origin main[16Dcommit -m 'feat: add Rag engine'[24D[P[P[22C  [30Dadd -A                        [24D-A statussu[10Dcd /Users/jiezhao/Documents/Data_Sciense_Project/Art-assistant
+streamlit run scripts/app_streamlit_main.py[K
+[K[K[?2004l
+[0m
+[34m[1m  You can now view your Streamlit app in your browser.[0m
+[0m
+[34m  Local URL: [0m[1mhttp://localhost:8501[0m
+[34m  Network URL: [0m[1mhttp://192.168.0.113:8501[0m
+[0m
+[34m[1m  For better performance, install the Watchdog module:[0m
+
+  $ xcode-select --install
+  $ pip install watchdog
+            [0m
+c^C[34m  Stopping...[0m
+
+gi  [1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004hggit status[?2004l
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	[31mmodified:   typescript[m
+
+no changes added to commit (use "git add" and/or "git commit -a")
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004h[7mgit switch main [27m[16D[27mg[27mi[27mt[27m [27ms[27mw[27mi[27mt[27mc[27mh[27m [27mm[27ma[27mi[27mn[27m [?2004l
+M	typescript
+Already on 'main'
+Your branch is up to date with 'origin/main'.
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004h[7mgit pull --rebase origin main [27m[30D[27mg[27mi[27mt[27m [27mp[27mu[27ml[27ml[27m [27m-[27m-[27mr[27me[27mb[27ma[27ms[27me[27m [27mo[27mr[27mi[27mg[27mi[27mn[27m [27mm[27ma[27mi[27mn[27m [?2004l
+error: cannot pull with rebase: You have unstaged changes.
+error: please commit or stash them.
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004h[7mgit fetch origin[27m[16D[27mg[27mi[27mt[27m [27mf[27me[27mt[27mc[27mh[27m [27mo[27mr[27mi[27mg[27mi[27mn[?2004l
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004hgit fetch origin[12Dpull --rebase origin main [?2004l
+error: cannot pull with rebase: You have unstaged changes.
+error: please commit or stash them.
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004h[7mGit diff -staged[27m
+[K[A[49C[27mG[27mi[27mt[27m [27md[27mi[27mf[27mf[27m [27m-[27ms[27mt[27ma[27mg[27me[27md[1B[K[?2004l
+[?1h=error: invalid option: -staged[m
+[K[?1l>[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004h[7mGit diff -staged[27m
+[K[A[49C[27mG[27mi[27mt[27m [27md[27mi[27mf[27mf[27m [27m-[27ms[27mt[27ma[27mg[27me[27md[1B[K[A[65C[?2004l[1B[?1h=error: invalid option: -staged[m
+[K[?1l>[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004hGit diff -staged[P[15C [16Dgit diff -staged[15D[?2004l
+[?1h=error: invalid option: -staged[m
+[K[?1l>[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004h[7mgit status -sb [27m[15D[27mg[27mi[27mt[27m [27ms[27mt[27ma[27mt[27mu[27ms[27m [27m-[27ms[27mb[27m [?2004l
+## [32mmain[m...[31morigin/main[m
+ [31mM[m typescript
+[1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004h[7mGit checkout main[27m[17D[27mG[27mi[27mt[27m [27mc[27mh[27me[27mc[27mk[27mo[27mu[27mt[27m [27mm[27ma[27mi[27mn[?2004l
+M	typescript
+Already on 'main'
+Your branch is up to date with 'origin/main'.
 [1m[7m%[27m[1m[0m                                                                                                                                         [0m[27m[24m[J(.venv) jiezhao@Jies-MacBook-Pro Art-assistant % [K[?2004h

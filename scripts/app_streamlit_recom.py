@@ -1,7 +1,10 @@
-import sys, pathlib
-ROOT = pathlib.Path(__file__).resolve().parents[1]   # project root (…/Art-assistant)
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
 # ------------------------------------
 
 import streamlit as st
@@ -116,7 +119,7 @@ def render_recom_tab(
     for col, rec in zip(cols, recs):
         cap = f'{rec["title"]} · score {rec["score"]:.2f}'
         p = rec["thumbnail_path"]
-        if p and pathlib.Path(p).exists():
+        if p and Path(p).exists():
             col.image(p, caption=cap, use_container_width=True)
         else:
             col.write(cap)
