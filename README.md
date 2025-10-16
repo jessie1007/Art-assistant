@@ -38,32 +38,50 @@ Artists often struggle to **simplify values and see big shapes**. Current advice
 - **App:** Streamlit (UI)  
 - **Data:** WikiArt (images + style metadata)  
 - **Ops:** GitHub Actions (CI), pytest
+- **LLM:**: OpenAI / local (configurable) — prompts over extracted metrics (no raw image by default); low temperature (~0.2) for consistent, two-bullet tips.
 
----
+How the Value Tools Work (in plain English)
+- Big Value Blocks (K=4–6): groups the scene into a few, large, connected shapes by value (enforces simplification). Best starting map for painting.
+- Value Plan (K=3–8): discrete value steps (quantile by default). Good for refining lights/shadows after blocking-in.
+- Grayscale & Metrics: quick “squint test,” plus mean/contrast and dark/light coverage.
+- Defaults that teach well: Blocks K=5, Plan K=7 (method: quantile).
 
-## 📦 Getting Started
-```bash
-# 1) Clone
-git clone https://github.com/<you>/art-assistant.git && cd art-assistant
+Key App Settings (sidebar / panels)
+- Retrieval
+- FAISS index path: data/index_samples/index.faiss
+- Metadata JSONL path: data/embeddings_samples/artwork_index.jsonl
 
-# 2) Environment
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+Top-K: 5 (typical)
+- Value Studies
+- Blocks (K) 4–6 (fewer = simpler; more = more detail)
+- Spatial coherence (0–1): higher → bigger, connected masses
+- Downscale (px): 300–420 is a good speed/quality tradeoff
 
-# 3) Run tests
-pytest -q
+Value Plan: K=3–8 (quantile recommended)
 
-# 4) Launch app
-streamlit run app/app.py
+Performance Tips
+- Large images? The value tools downscale internally; keep long side ~360–420px for speed and readable shapes.
+- Caching is built in. If things re-compute too often, ensure you’re passing hashable inputs (bytes/NumPy arrays) to cached functions.
+- GPU optional: use faiss-gpu and set device: "cuda" if your style/retrieval models run on Torch.
 
-## ✅ Week 1 — Retrieval MVP (Completed)
+Troubleshooting
+- ModuleNotFoundError: value_blocks
+- Ensure scripts/__init__.py exists, import with from scripts.value_blocks import ..., and run from repo root.
+- Python < 3.10 union types, Replace int | None with Optional[int] or add from __future__ import annotations at the top of the file.
+- OpenCV missing, pip install opencv-python.
+- Unreadable image, Ensure file is JPG/PNG/WEBP. PIL will raise UnidentifiedImageError on malformed files.
 
-- Collected sample oil paintings from The Met Open Access.
-- Generated CLIP embeddings (`embeddings.npy`) and saved metadata (`artwork_index.jsonl`).
-- Built a FAISS index for fast nearest-neighbor search.
-- Created a **Streamlit app** (`app_streamlit_retrieval.py`):
-  - Upload a painting → embed with CLIP → search FAISS → show top-5 similar artworks.
-  - Displays **title, artist, year, style**, and similarity score.
+Data Notes
+- Embeddings/Index: artwork_index.jsonl should contain items with id, image_path/url, and any style tags you use; index.faiss must be built with the same embedding model as at inference.
+- Licensing: If you use WikiArt or other datasets, follow their license/terms. Don’t redistribute copyrighted images.
 
-### Run Streamlit App
+Roadmap
+- Block labeling (1..K) and Dominant/Secondary/Supporting caption ✅
+- Similarity warnings for adjacent values (merge/split hints)
+- Optional subject mask / background separation
+
+
+
+📄 License
+
+MIT — see LICENSE.
