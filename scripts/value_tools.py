@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import List, Dict, Tuple
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 import numpy as np, cv2
 import io 
 import streamlit as st
@@ -27,7 +27,6 @@ def _blocks_cached(rgb: np.ndarray, k: int, spatial: float, downscale: int) -> n
 @st.cache_data(show_spinner=False, max_entries=64)
 def _plan_kmeans(gray: np.ndarray, k: int) -> Tuple[np.ndarray, np.ndarray]:
     """3–8 value plan via k-means on luminance (kept for comparison)."""
-    import cv2
     x = gray.reshape(-1, 1).astype(np.float32)
     k = max(2, int(k))
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.5)
@@ -78,22 +77,116 @@ def value_percentages(poster: np.ndarray, centers: np.ndarray):
     pct = counts / counts.sum()
     return pct  # array length k, sums to 1.0
 
+def _get_thresholds(gray: np.ndarray,
+                    cfg: dict | None,
+                    mode: str = "fixed",
+                    plan_edges: Tuple[np.ndarray, np.ndarray] | None = None) -> tuple[float, float]:
+    """
+    Returns (dark_t, light_t) in 0..1 based on mode:
+      - "fixed": from cfg.value_thresholds or defaults (0.20/0.80)
+      - "auto": per-image quantiles (q20, q80)
+      - "plan": use value plan edges/centers if provided
+    """
+    # 1) fixed (pedagogical)
+    if mode == "fixed":
+        vt = (cfg or {}).get("value_thresholds", {})
+        dark_t  = float(vt.get("dark",  0.20))
+        light_t = float(vt.get("light", 0.80))
+        return dark_t, light_t
+
+    g = gray.astype(np.float32) / 255.0
+
+    # 2) auto (data-driven)
+    if mode == "auto":
+        dark_t  = float(np.quantile(g, 0.20))
+        light_t = float(np.quantile(g, 0.80))
+        return dark_t, light_t
+
+    # 3) plan-anchored (use plan bands)
+    if mode == "plan" and plan_edges is not None:
+        plan_img, centers = plan_edges  # plan_img: uint8 greys at band centers, centers: 0..255
+        centers01 = np.sort(centers.astype(np.float32) / 255.0)
+        # take 2nd darkest as dark threshold, 2nd lightest as light threshold (robust)
+        if len(centers01) >= 4:
+            return float(centers01[1]), float(centers01[-2])
+        elif len(centers01) >= 3:
+            return float(centers01[0]), float(centers01[-1])
+
+    # fallback (degenerate)
+    return 0.20, 0.80
+
+def _thresholds_hybrid(
+    gray: np.ndarray,
+    cfg: dict | None = None,
+    plan_edges: Tuple[np.ndarray, np.ndarray] | None = None
+) -> tuple[float, float, str, str]:
+    """
+    Hybrid thresholds for dark/light (0..1):
+      - default: fixed from cfg (0.20 / 0.80 if not set)
+      - switch to AUTO (quantiles) if image is low-contrast or fixed thresholds
+        produce almost no dark/light coverage
+      - optionally use PLAN if provided and distribution is super extreme
+    Returns: (dark_t, light_t, mode_used, reason)
+    """
+    # 1) fixed (pedagogical default)
+    vt = (cfg or {}).get("value_thresholds", {})
+    dark_fixed  = float(vt.get("dark",  0.20))
+    light_fixed = float(vt.get("light", 0.80))
+
+    g = gray.astype(np.float32) / 255.0
+    contrast = float(g.std())
+
+    # coverage under fixed thresholds
+    dark_cov_fixed  = float((g < dark_fixed).mean())
+    light_cov_fixed = float((g > light_fixed).mean())
+
+    # 2) low-contrast or “no coverage” → AUTO quantiles (q20/q80)
+    if (contrast < 0.11) or (dark_cov_fixed < 0.02 and light_cov_fixed < 0.02):
+        dark_auto  = float(np.quantile(g, 0.20))
+        light_auto = float(np.quantile(g, 0.80))
+        # guard if degenerate
+        if not np.isfinite(dark_auto) or not np.isfinite(light_auto) or dark_auto >= light_auto:
+            return dark_fixed, light_fixed, "fixed", "fallback: degenerate auto thresholds"
+        return dark_auto, light_auto, "auto", (
+            f"auto: low contrast (σ={contrast:.2f}) or minimal fixed coverage "
+            f"(dark={dark_cov_fixed:.1%}, light={light_cov_fixed:.1%})"
+        )
+
+    # 3) extremely skewed distributions → PLAN (if available)
+    #    e.g., tons of darks or lights; plan avoids chasing tiny tails
+    if plan_edges is not None:
+        plan_img, centers = plan_edges
+        centers01 = np.sort(centers.astype(np.float32) / 255.0)
+        if len(centers01) >= 4:
+            if dark_cov_fixed > 0.70 or light_cov_fixed > 0.70:
+                return float(centers01[1]), float(centers01[-2]), "plan", (
+                    f"plan: extreme coverage (dark={dark_cov_fixed:.1%}, light={light_cov_fixed:.1%})"
+                )
+
+    # 4) otherwise stick with fixed (stable for learning)
+    return dark_fixed, light_fixed, "fixed", "default: pedagogical fixed thresholds"
+
+
 # ================================
 # Public UI: render_value_tab
 # ================================
-def render_value_tab(img: Image.Image, k_values: int = 7):
+
+def render_value_tab(img: Image.Image, k_values: int = 7, cfg: dict | None = None):
     """
     Two rows layout (live updates, no form):
       Row 1: Reference | Big Value Blocks
       Row 2: Grayscale | Value Plan
     """
+
     st.header("🧪 Value Studies")
     if img is None:
         st.info("Upload a photo or painting in the main app (top).")
         return
 
+    mode = st.radio("Value thresholds", ["fixed", "auto", "plan"], index=0,
+        help="fixed=consistent; auto=adapts to image; plan=derived from value plan")
+
     # --- decode once & cache by bytes ---
-    import io
     buf = io.BytesIO(); img.save(buf, format="PNG"); img_bytes = buf.getvalue()
     rgb, gray = _prep_arrays(img_bytes)  # cached
 
@@ -134,10 +227,15 @@ def render_value_tab(img: Image.Image, k_values: int = 7):
     plan_pil = Image.fromarray(plan, "L")
     plan_pct = value_percentages(plan, plan_centers)
 
-    # Metrics (always show)
     g = gray.astype("float32") / 255.0
-    mean_val = float(g.mean()); contrast = float(g.std())
-    dark_pct  = float((g < 0.20).mean()); light_pct = float((g > 0.80).mean())
+    mean_val = float(g.mean())
+    contrast = float(g.std())
+
+    dark_t, light_t, mode_used, note = _thresholds_hybrid(gray, cfg, plan_edges=(plan, plan_centers))
+    dark_pct  = float((g < dark_t).mean())
+    light_pct = float((g > light_t).mean())
+    st.caption(f"Thresholds ({mode_used}): dark < {dark_t:.2f}, light > {light_t:.2f} — {note}")
+
 
     # ================= ROW 1 =================
     r1c1, r1c2 = st.columns([1, 1], gap="large")
