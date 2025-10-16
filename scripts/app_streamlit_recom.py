@@ -1,3 +1,4 @@
+from __future__ import annotations
 import sys
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from PIL import Image
 import numpy as np
 import cv2
 
-
+from scripts.llm_helper import tips_from_metrics  # LLM wrapper (praise + two tips)
 from REDACTED import embed_image
 from rerank_tools import hue_hist, texture_vec, combine_scores
 from feedback_tool import make_feedback
@@ -37,6 +38,7 @@ def render_recom_tab(
     final_k=5,
     show_feedback=True,
     meta_path="data/index_samples/meta.npy",
+    cfg=None
 ):
     """Render the Recommend & Critique UI using the shared image from the launcher."""
     st.header("🎨 Recommend & Critique")
@@ -124,10 +126,55 @@ def render_recom_tab(
         else:
             col.write(cap)
 
+        # ---------- Build metrics for LLM praise+tips ----------
+    # quick value proxy from Sobel magnitude already computed above (grad_mag_mean)
+    # compute light/dark coverage as a simple proxy from grayscale histogram
+    gray_8 = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    g = gray_8.astype(np.float32) / 255.0
+    mean_val   = float(g.mean())
+    contrast   = float(g.std())
+    dark_pct   = float((g < 0.20).mean())
+    light_pct  = float((g > 0.80).mean())
+
+    # area fractions via simple posterization to 5 steps (cheap, local to this tab)
+    k_for_blocks = 5
+    x = gray_8.reshape(-1, 1).astype(np.float32)
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 0.5)
+    _, _lab, centers = cv2.kmeans(x, k_for_blocks, None, criteria, 3, cv2.KMEANS_PP_CENTERS)
+    centers = np.sort(centers.flatten())
+    idx = np.argmin(np.abs(gray_8[..., None] - centers[None, None, :]), axis=2)
+    vals, counts = np.unique(idx, return_counts=True)
+    order = np.argsort(counts)[::-1]
+    areas_sorted = [(int(centers[i]), float(counts[i] / idx.size)) for i in order]
+    areas_top3 = [[f"#{r+1}", float(areas_sorted[r][1])] for r in range(min(3, len(areas_sorted)))]
+
+    metrics = {
+        "blocks_K": k_for_blocks,
+        "areas_sorted": areas_sorted,
+        "areas_top3": areas_top3,
+        "plan_K": 5,
+        "plan_centers": [int(c) for c in centers],
+        "mean": mean_val,
+        "contrast": contrast,
+        "dark_pct": dark_pct,
+        "light_pct": light_pct,
+        "notes": "Recommend/Critique tab auto metrics",
+    }
+
+    llm_cfg = (cfg or {}).get("llm", {})
+    praise_and_tips = tips_from_metrics(metrics, llm_cfg)  # [praise, tip1, tip2]
+
+    st.write("### Feedback")
+    if praise_and_tips and len(praise_and_tips) >= 3:
+        st.markdown(f"**What’s working:** {praise_and_tips[0]}")
+        st.markdown(f"- {praise_and_tips[1]}")
+        st.markdown(f"- {praise_and_tips[2]}")
+
+
     # --- Feedback (rule-based CV critique) ---
     if show_feedback:
         st.write("### Feedback")
-        fb = make_feedback(np.array(img))
+        fb = make_feedback(np.array(img), cfg=cfg)
         interp = interpret_feedback(fb)
 
         # Badges + short summary
