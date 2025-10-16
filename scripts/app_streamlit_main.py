@@ -65,5 +65,6 @@ with tab4:
         labels=labels,
         device=device,
         index_path=index_path,
-        meta_path=meta_path
+        meta_path=meta_path,
+        cfg=cfg
     )

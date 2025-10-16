@@ -16,3 +16,7 @@ rerank:
 
 feedback:
   thirds_radius_pct: 0.08         # ~8% of min(W,H) for thirds vicinity
+
+value_thresholds:
+  dark: 0.20    # pixels < 0.20 treated as "dark"
+  light: 0.80   # pixels > 0.80 treated as "light"
