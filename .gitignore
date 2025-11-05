@@ -21,3 +21,6 @@ data/samples/
 .DS_Store.env
 .env.*
 replacements.txt
+.env
+.env.*
+replacements.txt
