@@ -18,4 +18,6 @@ data/samples/
 .venv/
 
 # Ignore system files
-.DS_Store
+.DS_Store.env
+.env.*
+replacements.txt
