@@ -12,7 +12,8 @@ import scripts.value_tools as value
 import scripts.app_streamlit_style as style
 import scripts.app_streamlit_recom as recom
 import yaml, sys, pathlib
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
+
 
 @st.cache_data(show_spinner=False)
 def load_cfg(path: Path):

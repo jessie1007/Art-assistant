@@ -1,161 +1,175 @@
 # scripts/llm_helper.py
 from __future__ import annotations
+import os
+from typing import Tuple, Dict
+from dotenv import load_dotenv
 
-import os, json
-from typing import Dict, List, Optional
+# Load .env once on import (expects HF_TOKEN and HF_MODEL in project root .env)
+load_dotenv()
 
-# optional dependency: pip install openai>=1.0
-try:
-    from openai import OpenAI
-except Exception:
-    OpenAI = None  # fallback to heuristics if unavailable
+def _priority_levers(features: Dict, interp: Dict) -> list[str]:
+    """Return improvement levers ranked by likely impact from metrics."""
+    v = features.get("value", {})
+    c = features.get("composition", {})
+    col = features.get("color", {})
+
+    # Value / contrast
+    contrast = float(v.get("contrast", 0.15))
+    dark_pct = float(v.get("dark_pct", 0.05))
+    light_pct = float(v.get("light_pct", 0.02))
+
+    # Composition / attention
+    entropy_n = float(c.get("entropy_n", 0.5))
+    focal     = float(c.get("focal_strength", 1.0))
+    border    = float(c.get("border_pull", 0.0))
+
+    # Color
+    sat_mean  = float(col.get("saturation_mean", 0.2))
+
+    levers = []
+
+    # 1) Focus clarity first (biggest impact on read)
+    if entropy_n > 0.65 or focal < 6.0:
+        levers.append("focus_clarity")
+
+    # 2) Global/local contrast (second biggest lever)
+    low_light_anchors  = dark_pct < 0.05
+    low_highlight_spark= light_pct < 0.03
+    if contrast < 0.12 or low_light_anchors or low_highlight_spark:
+        levers.append("contrast_structure")
+
+    # 3) Edge pull (edge distractions)
+    if border > 0.18:
+        levers.append("edge_pull")
+
+    # 4) Palette control / chroma management
+    if sat_mean > 0.35 or sat_mean < 0.12:
+        levers.append("palette_control")
+
+    # Always dedupe & keep order
+    seen = set(); out = []
+    for k in levers:
+        if k not in seen:
+            seen.add(k); out.append(k)
+
+    # If nothing triggered, still return something reasonable
+    if not out:
+        out = ["focus_clarity", "contrast_structure", "edge_pull", "palette_control"]
+
+    return out
 
 
-SYSTEM = (
-    "You are a painting coach. You will receive VALUE analysis only (no pixels). "
-    "Return exactly THREE lines:\n"
-    "1) One short, specific positive observation about what is working well.\n"
-    "2) One concise actionable tip.\n"
-    "3) One concise actionable tip.\n"
-    "Stay concrete (values, big shapes, dominance/hierarchy). Avoid jargon."
-)
+def build_coach_prompt(img, features: Dict, interp: Dict) -> Tuple[str, str]:
+    v = features.get("value", {})
+    c = features.get("composition", {})
+    col = features.get("color", {})
 
-def _prompt(metrics: Dict) -> List[Dict]:
-    """Format a compact prompt from metrics."""
-    content = {
-        "blocks": {
-            "K": metrics.get("blocks_K"),
-            "areas_top3": metrics.get("areas_top3"),  # e.g. [["#3", 0.42], ["#1", 0.29], ["#4", 0.18]]
-        },
-        "plan": {
-            "K": metrics.get("plan_K"),
-            "centers_0_255": metrics.get("plan_centers"),
-        },
-        "coverage": {
-            "mean": round(metrics.get("mean", 0.0), 3),
-            "contrast": round(metrics.get("contrast", 0.0), 3),
-            "dark_pct": round(metrics.get("dark_pct", 0.0), 3),
-            "light_pct": round(metrics.get("light_pct", 0.0), 3),
-        },
-        "notes": metrics.get("notes", ""),
-    }
-    return [
-        {"role": "system", "content": SYSTEM},
-        {"role": "user", "content": "Metrics:\n" + json.dumps(content, ensure_ascii=False)},
-    ]
+    priorities = _priority_levers(features, interp)
+
+    system_prompt = (
+        "You are a helpful painting coach. Be specific, supportive, and actionable. "
+        "Ground your critique in the provided metrics (value structure, attention behavior, color). "
+        "Avoid rigid rules; focus on clarity, hierarchy, and viewer read."
+    )
+
+    user_prompt = f"""
+Painting metrics (for your reasoning; don't repeat them verbatim):
+- Value: mean={v.get('mean',0):.2f}, contrast={v.get('contrast',0):.2f}, dark%={(v.get('dark_pct',0)*100):.1f}, light%={(v.get('light_pct',0)*100):.1f}
+- Composition: entropy_n={c.get('entropy_n',0):.2f}, focal_strength={c.get('focal_strength',0):.2f}, balance_lr={c.get('lr_balance',0):+.2f}, balance_tb={c.get('tb_balance',0):+.2f}, border_pull={c.get('border_pull',0):.2f}
+- Color: saturation_mean={col.get('saturation_mean',0):.2f}, harmony={col.get('harmony','mixed')}, top_colors={col.get('palette', [])[:3]}
+
+Rule-based summary (for your context; don't restate it): {interp.get('summary','')}
+
+PRIORITY LEVERS (use the first two that apply most): {priorities}
+
+Write a concise critique with **bullets on their own lines**:
+
+FORMAT (strict):
+LLM quick take
+Strengths:
+- <≤12 words, concrete>
+- <≤12 words, concrete>
+Improvements (top 2 levers only):
+- Do: <one precise 10-minute action tied to metrics>
+  Why: <one short reason about viewer clarity/hierarchy>
+- Do: <one precise 10-minute action tied to metrics>
+  Why: <one short reason about viewer clarity/hierarchy>
+
+Rules:
+- Do NOT restate the raw metrics or the summary sentence.
+- Keep bullets short, one line each (wrap the Why on the next line).
+- Choose the two actions that most improve read, based on PRIORITY LEVERS.
+- No generic advice (e.g., “improve balance” alone is not allowed).
+""".strip()
+
+    return system_prompt, user_prompt
 
 
-def tips_from_metrics(metrics: Dict, cfg_llm: Optional[Dict]) -> List[str]:
+
+def call_llm(
+    system_prompt: str,
+    user_prompt: str,
+    model: str | None = None,
+    max_tokens: int = 600,
+    temperature: float = 0.5,
+    top_p: float = 0.9,
+) -> str:
     """
-    Returns exactly THREE strings: [praise, tip1, tip2].
-    If the LLM is disabled/unavailable/errors → falls back to heuristics.
+    Calls a Hugging Face hosted chat model using the Inference API.
+
+    Requires:
+      - HF_TOKEN  (in .env)
+      - HF_MODEL  (in .env) e.g., "meta-llama/Llama-3.1-8B-Instruct" (or 70B)
     """
-    # LLM disabled or client missing → heuristics
-    if not cfg_llm or not cfg_llm.get("enabled", False) or OpenAI is None:
-        return _heuristic_praise_and_tips(metrics)
+    REDACTED = os.getenv("HF_TOKEN")
+    if not REDACTED:
+        raise RuntimeError("Missing HF_TOKEN. Put it in your project .env (HF_TOKEN=...).")
+
+    # Allow per-call override; otherwise use env
+    model = (model or os.getenv("HF_MODEL") or "").strip()
+    if not model or "/" not in model:
+        raise RuntimeError("HF_MODEL missing/invalid. Example: meta-llama/Llama-3.1-8B-Instruct")
 
     try:
-        provider = (cfg_llm.get("provider") or "openai").lower()
-        model = cfg_llm.get("model", "gpt-4o-mini")
-        temperature = float(cfg_llm.get("temperature", 0.2))
+        from huggingface_hub import InferenceClient
+        from huggingface_hub.errors import HfHubHTTPError
+    except Exception as e:
+        raise RuntimeError(
+            f"huggingface_hub import failed: {e!r} "
+            "(install into THIS venv and ensure no local file named 'huggingface_hub.py')."
+        ) from e
 
-        if provider == "openai":
-            client = OpenAI()  # uses OPENAI_API_KEY
-        else:
-            # allows OpenAI-compatible local servers (set OPENAI_BASE_URL)
-            client = OpenAI(
-                base_url=os.getenv("OPENAI_BASE_URL", None),
-                api_key=os.getenv("OPENAI_API_KEY", "nokey"),
-            )
+    client = InferenceClient(model=model, token=REDACTED)
 
-        resp = client.chat.completions.create(
-            model=model,
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user",   "content": user_prompt},
+    ]
+
+    try:
+        resp = client.chat_completion(
+            messages=messages,
+            max_tokens=max_tokens,
             temperature=temperature,
-            messages=_prompt(metrics),
-            max_tokens=160,
+            top_p=top_p,
         )
-        txt = (resp.choices[0].message.content or "").strip()
+    except HfHubHTTPError as e:
+        code = getattr(getattr(e, "response", None), "status_code", None)
+        if code in (401, 403):
+            raise RuntimeError(
+                "HF auth/access error. Check HF_TOKEN and ensure you have access to the model page."
+            ) from e
+        if code == 404:
+            raise RuntimeError(
+                f"Model repo not found: '{model}'. Double-check HF_MODEL spelling."
+            ) from e
+        raise
 
-        # Normalize output → exactly 3 lines
-        lines = [l.strip(" \t-•") for l in txt.split("\n") if l.strip()]
-        if len(lines) >= 3:
-            return [lines[0], lines[1], lines[2]]
-
-        # If the model returned a paragraph, split on sentences
-        sentences = [s.strip() for s in txt.replace("\n", " ").split(". ") if s.strip()]
-        if len(sentences) >= 3:
-            return [sentences[0] + ".", sentences[1] + ".", sentences[2] + "."]
-
-        # Fallback if formatting is odd
-        return _heuristic_praise_and_tips(metrics)
-
+    # Robust extraction across client versions
+    try:
+        choice = resp.choices[0]
+        msg = choice.get("message") if isinstance(choice, dict) else getattr(choice, "message", None)
+        content = (msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", "")) or ""
+        return content.strip()
     except Exception:
-        return _heuristic_praise_and_tips(metrics)
-
-
-# ---------------- Heuristics (fallback & augmentation) ----------------
-
-def _heuristic_praise_and_tips(m: Dict) -> List[str]:
-    """Bundle praise + two tips."""
-    praise = _heuristic_praise(m)
-    t1, t2 = _heuristic_tips(m)
-    return [praise, t1, t2]
-
-def _heuristic_praise(m: Dict) -> str:
-    """
-    Choose one positive, specific observation from simple metrics.
-    Prefers clear dominance, then balanced families, then solid range.
-    """
-    mean_ = m.get("mean", 0.0)
-    contrast = m.get("contrast", 0.0)
-    light = m.get("light_pct", 0.0)
-    areas = m.get("areas_sorted", [])  # [(gray, frac), ...] largest→smallest
-
-    if areas:
-        dom = areas[0][1]
-        if dom >= 0.35:
-            return f"Good dominance: your largest mass reads clearly (≈{dom*100:.0f}%)."
-    if 0.45 <= light <= 0.65:
-        return "Nice balance between light and dark families—neither is overpowering."
-    if contrast >= 0.18:
-        return "Solid value range—the lights and darks separate cleanly."
-    return "Cohesive simplification—values sit in clear families overall."
-
-def _heuristic_tips(m: Dict) -> List[str]:
-    """
-    Very lightweight coaching rules; returns two concise tips.
-    """
-    tips: List[str] = []
-
-    # Dominance check: biggest vs second biggest too close in area & value
-    areas_sorted = m.get("areas_sorted", [])  # [(gray, frac), ...] largest→smallest
-    if len(areas_sorted) >= 2:
-        gap = areas_sorted[0][1] - areas_sorted[1][1]
-        # if plan centers available, approximate value gap using nearest center delta
-        val_gap = None
-        centers = m.get("plan_centers") or []
-        if centers and len(centers) >= 2:
-            # treat first two areas' gray as is (0..255); get absolute diff to nearest centers
-            v0, v1 = areas_sorted[0][0], areas_sorted[1][0]
-            val_gap = abs(int(v0) - int(v1)) / 255.0
-        if val_gap is None:
-            val_gap = 0.0  # be conservative
-
-        if gap < 0.06 and val_gap < 0.08:
-            tips.append("Make one mass clearly dominant—merge or adjust values so the lead shape reads at least ~30% of the canvas.")
-
-    # Lights crowded?
-    light_pct = m.get("light_pct", 0.0)
-    if light_pct > 0.55:
-        tips.append("Group your lights: fold small light breaks into the nearest larger light mass before adding accents.")
-
-    # Contrast too low?
-    if m.get("contrast", 0.0) < 0.12 and len(tips) < 2:
-        tips.append("Push separation between the lightest light and the rest of the light family; keep darks unified.")
-
-    # Ensure two tips
-    default_tip = "Start with K=5 big value blocks; paint the largest mass first, then place a single opposite-value accent for hierarchy."
-    while len(tips) < 2:
-        tips.append(default_tip)
-
-    return tips[:2]
+        return str(resp).strip()
