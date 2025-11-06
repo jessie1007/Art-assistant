@@ -92,8 +92,9 @@ def main():
     ap.add_argument("--longest-side", type=int, default=512, help="resize longest side if downloading")
     ap.add_argument("--download-missing", action="store_true", help="download any images not already cached")
     ap.add_argument("--queries", nargs="*", default=["oil", "oil painting", "oil on canvas", "oil on wood"])
+    ap.add_argument("--metadata-only", action="store_true", help="build catalog from URLs only, no local JPEGs")
     args = ap.parse_args()
-
+    
     ensure_dirs()
 
     ids = fetch_ids_union(args.queries, limit=args.limit)
@@ -110,22 +111,20 @@ def main():
             time.sleep(args.delay); continue
 
         url = obj.get("primaryImageSmall") if args.thumb else (obj.get("primaryImage") or obj.get("primaryImageSmall"))
-        if not url:
-            time.sleep(args.delay); continue
-
-        # compute expected local path and either use it or (optionally) download
-        local_path = expected_local_path(url)
-        if not Path(local_path).exists():
-            if args.download_missing:
-                saved = download_and_cache(url, longest_side=args.longest_side)
-                if not saved:
+        # NEW: handle metadata-only mode or download logic
+        if args.metadata_only:
+            local_path = None
+        else:
+            local_path = expected_local_path(url)
+            if not Path(local_path).exists():
+                if args.download_missing:
+                    saved = download_and_cache(url, longest_side=args.longest_side)
+                    if not saved:
+                        time.sleep(args.delay)
+                        continue
+                else:
                     time.sleep(args.delay)
                     continue
-            else:
-                # skip if not in cache and not downloading
-                time.sleep(args.delay)
-                continue
-
 
         rows.append({
             "source": "met",
@@ -137,8 +136,9 @@ def main():
             "objectName": obj.get("objectName"),
             "object_url": obj.get("objectURL"),
             "image_url": url,
-            "local_path": local_path,
+            **({"local_path": local_path} if local_path else {}),
         })
+
 
         time.sleep(args.delay)
 
