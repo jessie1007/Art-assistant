@@ -13,7 +13,8 @@ import numpy as np
 import cv2
 
 from scripts.llm_helper import build_coach_prompt, call_llm
-from REDACTED import embed_image
+from hf_embed_global import embed_image
+from dotenv import load_dotenv
 from rerank_tools import hue_hist, texture_vec, combine_scores
 from feedback_tool import make_feedback, interpret_feedback
 from faiss_utils import load_faiss_index, id_to_meta, search_index
