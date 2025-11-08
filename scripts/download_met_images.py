@@ -27,6 +27,8 @@ from tqdm import tqdm
 import re
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from typing import Optional
+
 
 HEADERS = {"User-Agent": "ArtAssistant/1.0 (contact: you@example.com)"}
 YEAR_RE = re.compile(r"\b(\d{4})\b")
@@ -45,12 +47,12 @@ def make_session(max_retries: int = 5, backoff: float = 0.5) -> requests.Session
 
 SESSION = make_session()
 
-def extract_year(object_date: str) -> int | None:
+def extract_year(object_date: str) -> Optional[int]:
     if not isinstance(object_date, str): return None
     m = YEAR_RE.search(object_date)
     return int(m.group(1)) if m else None
 
-def to_century_bin(y: int | None) -> str:
+def to_century_bin(y: Optional[int]) -> str:
     if y is None: return "Unknown"
     return f"{(y // 100) * 100}s"
 
@@ -127,8 +129,8 @@ def main():
     ap.add_argument("--longest-side", type=int, default=512, help="resize longest side if downloading")
     ap.add_argument("--download-missing", action="store_true", help="download any images not already cached")
     ap.add_argument("--queries", nargs="*", default=["oil", "oil painting", "oil on canvas", "oil on wood"])
-    ap.add_argument("--metadata-only", action="store_true", help="build catalog from URLs only, no local JPEGs")
-    ap.add_argument("--metadata-only", action="store_true", help="build catalog from URLs only, skip downloads")
+    ap.add_argument("--metadata-only", dest="metadata_only", action="store_true",
+                help="build catalog from URLs only, skip downloads")
     ap.add_argument("--min-year", type=int, default=None, help="keep items with parsed year >= this")
     ap.add_argument("--max-year", type=int, default=None, help="keep items with parsed year <= this")
     ap.add_argument("--balance-by-century", action="store_true", help="after collection, sample up to --per-century per century bin")
@@ -205,6 +207,31 @@ def main():
             merged = new_df
     else:
         merged = new_df
+    
+    # --- normalize dtypes before writing parquet ---
+
+
+    # Numeric (nullable) columns
+    for col in ["source_id", "numeric_year"]:
+        if col in merged.columns:
+            merged[col] = pd.to_numeric(merged[col], errors="coerce").astype("Int64")
+
+    # String-like columns
+    for col in [
+        "source","title","artist","year","medium","objectName",
+        "object_url","image_url","department","culture","century_bin","local_path"
+    ]:
+        if col in merged.columns:
+            merged[col] = merged[col].astype("string")
+
+    # Optional: ensure ordering (nice to have)
+    ordered = [
+        "source","source_id","title","artist","year","numeric_year","century_bin",
+        "department","culture","medium","objectName","object_url","image_url","local_path"
+    ]
+    merged = merged[[c for c in ordered if c in merged.columns] + [c for c in merged.columns if c not in ordered]]
+    # --- end normalize ---
+
 
     merged.to_parquet(PARQUET, index=False)
     print(f"[done] {len(merged)} rows -> {PARQUET}")
