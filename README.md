@@ -10,7 +10,7 @@
 ---
 
 ## 🚀 Demo
-**Live App:** _link to Streamlit/HF Spaces_  
+**Live App:** _link to Streamlit/HF Spaces_  ---TO BE ADDED SOON
 **Quick look:**  
 ![Demo](docs/demo.gif)
 
@@ -20,7 +20,7 @@
 - **Similar References (CLIP + FAISS):** Retrieve 5–10 visually/style-related works for inspiration.
 - **Value Practice / Shape Simplification:** 3–5 value posterization + color block view to study big shapes.
 - **Style Classification (ViT/CLIP):** Style label + 1–2 sentence context note.
-- **Actionable Tips (2 bullets):** Data-driven suggestions based on value distribution & composition heuristics.  
+- **Actionable Tips (2 bullets):** Data-driven suggestions based on value distribution & composition heuristics, wrapped in LLM model for human-readable feedback. 
 - *(Planned)* **Segmentation (SAM) & Generative Previews:** Big-shape masks; optional contrast/palette “what-if” previews.
 
 ---
