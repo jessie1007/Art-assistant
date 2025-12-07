@@ -1,11 +1,20 @@
-import argparse, os, json
+import argparse, os, json, sys
 from pathlib import Path
 import numpy as np, pandas as pd
 from PIL import Image
 import torch
 
+# Add project root to path for Colab compatibility
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 # Use hf_embed_global for CLIP embeddings
-from scripts.hf_embed_global import embed_images
+try:
+    from scripts.hf_embed_global import embed_images
+except ImportError:
+    # Fallback for Colab if scripts. doesn't work
+    from hf_embed_global import embed_images
 
 def main():
     parser = argparse.ArgumentParser()
