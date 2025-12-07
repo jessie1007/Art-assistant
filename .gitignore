@@ -24,3 +24,10 @@ replacements.txt
 .env
 .env.*
 replacements.txt
+
+data/
+*.parquet
+*.npy
+*.faiss
+__pycache__/
+*.pyc
