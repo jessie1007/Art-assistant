@@ -44,9 +44,33 @@ if uploaded:
 
 
 with st.sidebar:
+    st.header("🔌 API Settings")
+    use_api = st.checkbox("Use FastAPI backend", value=True, help="Connect to FastAPI server for image search")
+    api_url = st.text_input(
+        "API URL",
+        value="http://localhost:8000",
+        help="FastAPI server URL (default: http://localhost:8000)",
+        key="api_url"
+    )
+    
+    if use_api:
+        # Quick health check
+        try:
+            from app.api_client import ArtAssistantAPIClient
+            client = ArtAssistantAPIClient(api_url=api_url)
+            health = client.health_check()
+            if health.get("status") == "healthy":
+                st.success(f"✅ API Connected\nIndex: {health.get('index_size', 0)} artworks")
+            else:
+                st.warning("⚠️ API not responding")
+        except Exception as e:
+            st.error(f"❌ API Error: {str(e)}")
+    
+    st.divider()
+    
     st.header("Retrieval Settings")
-    index_path = st.text_input("FAISS index path", "data/index_samples/index.faiss", key="idx")
-    meta_path  = st.text_input("Metadata JSONL path", "data/embeddings_samples/artwork_index.jsonl", key="meta")
+    index_path = st.text_input("FAISS index path", "data/index_samples/index.faiss", key="idx", disabled=use_api)
+    meta_path  = st.text_input("Metadata JSONL path", "data/embeddings_samples/artwork_index.jsonl", key="meta", disabled=use_api)
     topk       = st.slider("Top-K", 1, 10, 5, key="topk")
 
     st.header("Value Study Settings")
@@ -55,7 +79,14 @@ with st.sidebar:
 
 tab1, tab2, tab3, tab4 = st.tabs(["🔎 Retrieval", "🧪 Value Studies", "🎭 Style Classifier", "🎨 Recommend & Critique"])
 with tab1:
-    retr.render_retrieval_tab(img=img, index_path=index_path, meta_path=meta_path, topk=topk)
+    retr.render_retrieval_tab(
+        img=img,
+        index_path=index_path,
+        meta_path=meta_path,
+        topk=topk,
+        api_url=api_url if use_api else None,
+        use_api=use_api
+    )
 with tab2:
     value.render_value_tab(img=img, k_values=k_values)
 with tab3:

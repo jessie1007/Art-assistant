@@ -1,4 +1,4 @@
-import os, json
+import os, json, sys
 from pathlib import Path
 
 import numpy as np
@@ -8,7 +8,20 @@ import torch
 from transformers import CLIPModel, CLIPProcessor
 import faiss
 
-# ---------- Cache: model ----------
+# Add project root to path
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+# Import API client
+try:
+    from app.api_client import ArtAssistantAPIClient
+    API_CLIENT_AVAILABLE = True
+except ImportError:
+    API_CLIENT_AVAILABLE = False
+    st.warning("⚠️ API client not available. Using direct FAISS mode.")
+
+# ---------- Cache: model (for direct FAISS mode) ----------
 @st.cache_resource
 def load_model(model_id: str = "openai/clip-vit-base-patch32"):
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -16,7 +29,7 @@ def load_model(model_id: str = "openai/clip-vit-base-patch32"):
     proc  = CLIPProcessor.from_pretrained(model_id)
     return model, proc, device
 
-# ---------- Cache: FAISS + metadata ----------
+# ---------- Cache: FAISS + metadata (for direct FAISS mode) ----------
 @st.cache_resource
 def load_index_and_meta(index_path: str, meta_path: str):
     """Load FAISS index and metadata. Supports .npy (dict) and .jsonl (list of dicts)."""
@@ -58,7 +71,20 @@ def render_retrieval_tab(
     index_path: str = "data/index_samples/index.faiss",
     meta_path: str  = "data/embeddings_samples/artwork_index.jsonl",
     topk: int = 5,
+    api_url: str = None,  # If provided, use API mode
+    use_api: bool = True,  # Toggle between API and direct FAISS
 ):
+    """
+    Render retrieval tab with support for both API and direct FAISS modes.
+    
+    Args:
+        img: PIL Image to search
+        index_path: Path to FAISS index (for direct mode)
+        meta_path: Path to metadata (for direct mode)
+        topk: Number of results to return
+        api_url: FastAPI server URL (if None, uses env var or localhost:8000)
+        use_api: If True, use API mode; if False, use direct FAISS mode
+    """
     if img is None:
         st.info("Upload an image above to see similar results.")
         return
@@ -66,34 +92,97 @@ def render_retrieval_tab(
     st.subheader("Retrieval results")
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
-        st.image(img, caption="Current photos", width=900)
+        st.image(img, caption="Current image", width=900)
 
+    # Choose mode: API or direct FAISS
+    if use_api and API_CLIENT_AVAILABLE:
+        # ========== API MODE ==========
+        try:
+            client = ArtAssistantAPIClient(api_url=api_url)
+            
+            # Check API health
+            with st.spinner("Checking API connection..."):
+                if not client.is_available():
+                    st.error("❌ API is not available. Please ensure FastAPI server is running.")
+                    st.info("💡 Start the server with: `uvicorn app.api.main:app --reload`")
+                    return
+            
+            # Search via API
+            with st.spinner(f"Searching for top {topk} similar artworks..."):
+                results = client.search_image(img, topk=topk)
+            
+            # Display results
+            artworks = results.get("results", [])
+            if not artworks:
+                st.warning("No similar artworks found.")
+                return
+            
+            st.subheader(f"Top {len(artworks)} similar images")
+            cols = st.columns(len(artworks))
+            
+            for col, artwork in zip(cols, artworks):
+                title = artwork.get("title") or "Untitled"
+                artist = artwork.get("artist") or "Unknown"
+                year = artwork.get("year") or artwork.get("objectDate") or "—"
+                style = artwork.get("style") or "—"
+                score = artwork.get("similarity_score", 0.0)
+                
+                # Try to load image
+                local_path = artwork.get("local_path")
+                image_available = artwork.get("image_available", False)
+                
+                if image_available and local_path and os.path.exists(local_path):
+                    col.image(local_path, use_container_width=True)
+                    cap = f"{title}\n{artist} — {year}\nStyle: {style}\nScore: {score:.3f}"
+                    col.caption(cap)
+                elif artwork.get("image_url"):
+                    col.image(artwork.get("image_url"), use_container_width=True)
+                    cap = f"{title}\n{artist} — {year}\nStyle: {style}\nScore: {score:.3f}"
+                    col.caption(cap)
+                else:
+                    col.write(f"**{title}**")
+                    col.write(f"{artist} — {year}")
+                    col.write(f"Style: {style}")
+                    col.write(f"Score: {score:.3f}")
+                    col.caption("(image not available)")
+        
+        except Exception as e:
+            st.error(f"❌ API request failed: {str(e)}")
+            st.info("💡 Falling back to direct FAISS mode...")
+            use_api = False  # Fallback to direct mode
+    
+    if not use_api or not API_CLIENT_AVAILABLE:
+        # ========== DIRECT FAISS MODE (fallback) ==========
+        try:
+            model, proc, device = load_model()
+            index, metas = load_index_and_meta(index_path, meta_path)
 
-    model, proc, device = load_model()
-    index, metas = load_index_and_meta(index_path, meta_path)
+            # Embed + search
+            with st.spinner("Embedding image and searching..."):
+                q = embed_image(img, model, proc, device).reshape(1, -1)
+                faiss.normalize_L2(q)  # cosine via inner product
+                D, I = index.search(q, topk)
 
-    # Embed + search
-    q = embed_image(img, model, proc, device).reshape(1, -1)
-    faiss.normalize_L2(q)  # cosine via inner product
-    D, I = index.search(q, topk)
-
-    # Render results
-    st.subheader(f"Top {topk} similar images")
-    cols = st.columns(topk)
-    for col, i, score in zip(cols, I[0], D[0]):
-        if 0 <= i < len(metas):
-            m = metas[i]
-            path   = m.get("local_path")
-            title  = m.get("title")  or "Untitled"
-            artist = m.get("artist") or "Unknown"
-            year   = m.get("year")   or m.get("objectDate") or "—"
-            style  = m.get("style")  or "—"
-            if path and os.path.exists(path):
-                col.image(path, use_container_width=True)
-                cap = f"{title}\n{artist} — {year}\nStyle: {style}\nScore: {float(score):.3f}"
-                col.caption(cap)
-            else:
-                col.write("(missing file)")
-        else:
-            col.write("(invalid index)")
+            # Render results
+            st.subheader(f"Top {topk} similar images")
+            cols = st.columns(topk)
+            for col, i, score in zip(cols, I[0], D[0]):
+                if 0 <= i < len(metas):
+                    m = metas[i]
+                    path   = m.get("local_path")
+                    title  = m.get("title")  or "Untitled"
+                    artist = m.get("artist") or "Unknown"
+                    year   = m.get("year")   or m.get("objectDate") or "—"
+                    style  = m.get("style")  or "—"
+                    if path and os.path.exists(path):
+                        col.image(path, use_container_width=True)
+                        cap = f"{title}\n{artist} — {year}\nStyle: {style}\nScore: {float(score):.3f}"
+                        col.caption(cap)
+                    else:
+                        col.write("(missing file)")
+                else:
+                    col.write("(invalid index)")
+        except Exception as e:
+            st.error(f"❌ Direct FAISS mode failed: {str(e)}")
+            st.exception(e)
 

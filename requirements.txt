@@ -21,3 +21,4 @@ transformers
 fastapi
 uvicorn[standard]
 python-multipart
+slowapi  # Rate limiting
