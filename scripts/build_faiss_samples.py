@@ -1,8 +1,5 @@
-
-from pathlib import Path
-import os, numpy as np, faiss
-import pathlib
 import os, json, numpy as np, faiss
+from pathlib import Path
 
 # NEW: resolve paths relative to the repo root (parent of /scripts)
 ROOT    = Path(__file__).resolve().parents[1]    # <--- key change

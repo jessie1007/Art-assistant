@@ -15,3 +15,9 @@ torch
 torchvision
 open-clip-torch
 faiss-cpu
+transformers
+
+# FastAPI server
+fastapi
+uvicorn[standard]
+python-multipart

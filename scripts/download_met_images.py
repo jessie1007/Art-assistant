@@ -153,7 +153,8 @@ def main():
             time.sleep(args.delay); continue
 
         url = obj.get("primaryImageSmall") if args.thumb else (obj.get("primaryImage") or obj.get("primaryImageSmall"))
-        # NEW: handle metadata-only mode or download logic
+        if not url:
+            time.sleep(args.delay); continue
 
         # Parse year & century bin for diversity
         y = extract_year(obj.get("objectDate"))

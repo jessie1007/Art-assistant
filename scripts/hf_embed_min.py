@@ -1,38 +1,82 @@
-# Minimal: load CLIP, embed up to 20 images from a parquet file, save embeddings.npy
-from hf_embed_global import embed_images
-import argparse, os, json
+import argparse, os, json, sys
 from pathlib import Path
 import numpy as np, pandas as pd
 from PIL import Image
 import torch
-from transformers import CLIPModel, CLIPProcessor
 
-#from clip_core import embed_images  # <<< new import
+# Add project root to path for Colab compatibility
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+# Use hf_embed_global for CLIP embeddings
+try:
+    from scripts.hf_embed_global import embed_images
+except ImportError:
+    # Fallback for Colab if scripts. doesn't work
+    from hf_embed_global import embed_images
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--parquet", default="data/corpus/samples20.parquet")
+    parser.add_argument("--parquet", default="data/corpus/met_oil_paintings.parquet")
     parser.add_argument("--out-dir", default="data/embeddings_samples")
     parser.add_argument("--limit", type=int, default=20, help="Max number of images to embed")
     args = parser.parse_args()
 
-    # 1) load file list
-    # read mega data of those file images
+    # 1) Load parquet file
     df = pd.read_parquet(args.parquet)
-    paths = [p for p in df["local_path"].tolist() if isinstance(p, str) and os.path.exists(p)]
-    paths = paths[: args.limit]
-
-    # 3) load images and preprocess (one small batch)
-    images = [Image.open(p).convert("RGB") for p in paths]
+    
+    # 2) Get local_path entries that exist (images should be in Drive)
+    paths = []
+    metadata_rows = []
+    
+    for idx, row in df.iterrows():
+        local_path = row.get("local_path")
+        if local_path and isinstance(local_path, str) and os.path.exists(local_path):
+            paths.append(local_path)
+            metadata_rows.append(row.to_dict())
+        
+        if len(paths) >= args.limit:
+            break
+    
+    if not paths:
+        print("ERROR: No valid images found. Check if local_path exists in parquet and files are in Drive.")
+        return
+    
+    print(f"Loading {len(paths)} images from local paths...")
+    
+    # 3) Load images from local paths (in Google Drive)
+    images = []
+    valid_metadata = []
+    
+    for path, meta in zip(paths, metadata_rows):
+        try:
+            img = Image.open(path).convert("RGB")
+            images.append(img)
+            valid_metadata.append(meta)
+        except Exception as e:
+            print(f"Failed to load {path}: {e}")
+            continue
+    
+    if not images:
+        print("ERROR: No images could be loaded.")
+        return
+    
+    # 4) Embed images
     mat = embed_images(images)  # (N,D) float32, L2-normalized
 
-    # 4) save
-    out = Path(args.out_dir); out.mkdir(parents=True, exist_ok=True)
+    # 5) Save embeddings and metadata
+    out = Path(args.out_dir)
+    out.mkdir(parents=True, exist_ok=True)
     np.save(out / "embeddings.npy", mat)
+    
+    # Save full metadata
     with open(out / "artwork_index.jsonl", "w") as f:
-        for p in paths: f.write(json.dumps({"local_path": p}) + "\n")
+        for meta in valid_metadata:
+            f.write(json.dumps(meta) + "\n")
 
     print(f"[done] embeddings shape = {mat.shape} -> {out/'embeddings.npy'}")
+    print(f"[done] metadata saved to {out/'artwork_index.jsonl'}")
 
 if __name__ == "__main__":
     main()
