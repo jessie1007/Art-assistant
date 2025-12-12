@@ -28,6 +28,7 @@ replacements.txt
 # Personal documentation (not for public repo)
 docs/WHY_FEATURES.md
 docs/WHY_FASTAPI.md
+docs/*.md
 
 data/
 *.parquet
