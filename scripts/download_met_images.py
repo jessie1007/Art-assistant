@@ -125,10 +125,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=None, help="cap candidate IDs after union")
     ap.add_argument("--delay", type=float, default=0.03, help="sleep between requests (sec)")
-    ap.add_argument("--thumb", action="store_true", help="prefer primaryImageSmall")
     ap.add_argument("--longest-side", type=int, default=512, help="resize longest side if downloading")
     ap.add_argument("--download-missing", action="store_true", help="download any images not already cached")
-    ap.add_argument("--queries", nargs="*", default=["oil", "oil painting", "oil on canvas", "oil on wood"])
+    ap.add_argument("--queries", nargs="*", default=["oil", "oil painting", "oil on canvas", "oil on wood","stilllife","painting", "portrait","landscape"])
     ap.add_argument("--metadata-only", dest="metadata_only", action="store_true",
                 help="build catalog from URLs only, skip downloads")
     ap.add_argument("--min-year", type=int, default=None, help="keep items with parsed year >= this")
