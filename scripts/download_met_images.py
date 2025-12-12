@@ -109,7 +109,7 @@ def download_and_cache(url: str, longest_side: int = 512) -> Optional[str]:
     if p.exists():
         return out_path
     try:
-        r = requests.get(url, timeout=30)
+        r = SESSION.get(url, timeout=30)
         r.raise_for_status()
         from PIL import Image  # local import to avoid top-level heavy import on dry runs
         img = Image.open(io.BytesIO(r.content))
