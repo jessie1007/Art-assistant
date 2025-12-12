@@ -11,8 +11,8 @@ Strategy:
 - Append/merge into parquet (dedupe by source_id)
 
 Usage:
-  python scripts/rebuild_met_catalog.py --limit 10000 --thumb --longest-side 512
-  python scripts/rebuild_met_catalog.py --download-missing --limit 20000 --thumb
+  python scripts/rebuild_met_catalog.py --limit 10000  --longest-side 512
+  python scripts/rebuild_met_catalog.py --download-missing --limit 20000
 """
 
 import os, io, time, argparse, hashlib
@@ -27,7 +27,6 @@ from tqdm import tqdm
 import re
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from typing import Optional
 
 
 HEADERS = {"User-Agent": "ArtAssistant/1.0 (contact: you@example.com)"}
@@ -128,6 +127,9 @@ def main():
     ap.add_argument("--longest-side", type=int, default=512, help="resize longest side if downloading")
     ap.add_argument("--download-missing", action="store_true", help="download any images not already cached")
     ap.add_argument("--queries", nargs="*", default=["oil", "oil painting", "oil on canvas", "oil on wood","stilllife","painting", "portrait","landscape"])
+    ap.add_argument("--thumb", action="store_true", help="use thumbnail images (primaryImageSmall) instead of full size")
+    ap.add_argument("--no-oil-filter", dest="filter_oil", action="store_false", default=True,
+                help="skip filtering for 'oil' in medium (get all paintings)")
     ap.add_argument("--metadata-only", dest="metadata_only", action="store_true",
                 help="build catalog from URLs only, skip downloads")
     ap.add_argument("--min-year", type=int, default=None, help="keep items with parsed year >= this")
@@ -147,9 +149,11 @@ def main():
         if not obj:
             time.sleep(args.delay); continue
 
-        med = (obj.get("medium") or "").lower().replace("-", " ")
-        if "oil" not in med:
-            time.sleep(args.delay); continue
+        # Optional: filter for oil paintings only (can be disabled with --no-oil-filter)
+        if args.filter_oil:
+            med = (obj.get("medium") or "").lower().replace("-", " ")
+            if "oil" not in med:
+                time.sleep(args.delay); continue
 
         url = obj.get("primaryImageSmall") if args.thumb else (obj.get("primaryImage") or obj.get("primaryImageSmall"))
         if not url:
@@ -185,10 +189,14 @@ def main():
             "title": obj.get("title"),
             "artist": obj.get("artistDisplayName"),
             "year": obj.get("objectDate"),
+            "numeric_year": y,  # Add parsed year
+            "century_bin": century,  # Add century bin
             "medium": obj.get("medium"),
             "objectName": obj.get("objectName"),
             "object_url": obj.get("objectURL"),
             "image_url": url,
+            "department": obj.get("department"),
+            "culture": obj.get("culture"),
             **({"local_path": local_path} if local_path else {}),
         })
 
