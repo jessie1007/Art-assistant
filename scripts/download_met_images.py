@@ -91,17 +91,21 @@ def fetch_ids_union(queries: Iterable[str], limit: Optional[int] = None) -> List
         ids = ids[:limit]
     return ids
 
-def fetch_object(obj_id: int, require_public_domain: bool = False) -> Optional[Dict]:
+def fetch_object(obj_id: int, require_public_domain: bool = False) -> tuple[Optional[Dict], Optional[int]]:
     try:
         r = SESSION.get(MET_OBJECT.format(objectID=obj_id), timeout=30)
         if r.status_code != 200:
-            return None
+            return None, r.status_code
         obj = r.json()
+        if not obj or not isinstance(obj, dict):
+            return None, None
         if require_public_domain and not obj.get("isPublicDomain", False):
-            return None
-        return obj
-    except Exception:
-        return None
+            return None, None
+        return obj, None
+    except requests.exceptions.RequestException as e:
+        return None, None
+    except Exception as e:
+        return None, None
 
 def download_and_cache(url: str, longest_side: int = 512) -> Optional[str]:
     out_path = expected_local_path(url)
@@ -123,7 +127,7 @@ def download_and_cache(url: str, longest_side: int = 512) -> Optional[str]:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=None, help="cap candidate IDs after union")
-    ap.add_argument("--delay", type=float, default=0.03, help="sleep between requests (sec)")
+    ap.add_argument("--delay", type=float, default=0.1, help="sleep between requests (sec)")
     ap.add_argument("--longest-side", type=int, default=512, help="resize longest side if downloading")
     ap.add_argument("--download-missing", action="store_true", help="download any images not already cached")
     ap.add_argument("--queries", nargs="*", default=["oil", "oil painting", "oil on canvas", "oil on wood","stilllife","painting", "portrait","landscape"])
@@ -150,6 +154,9 @@ def main():
     stats = {
         "total": 0,
         "fetch_failed": 0,
+        "fetch_404": 0,
+        "fetch_429": 0,
+        "fetch_other_error": 0,
         "not_public_domain": 0,
         "oil_filtered": 0,
         "no_image_url": 0,
@@ -161,9 +168,16 @@ def main():
     
     for oid in tqdm(ids, desc="Rebuilding catalog"):
         stats["total"] += 1
-        obj = fetch_object(oid, require_public_domain=args.public_domain_only)
+        obj, status_code = fetch_object(oid, require_public_domain=args.public_domain_only)
         if not obj:
             stats["fetch_failed"] += 1
+            if status_code == 404:
+                stats["fetch_404"] += 1
+            elif status_code == 429:
+                stats["fetch_429"] += 1
+                time.sleep(args.delay * 10)
+            elif status_code:
+                stats["fetch_other_error"] += 1
             time.sleep(args.delay); continue
         
         # Check public domain if filter is on
@@ -237,6 +251,12 @@ def main():
     print(f"  ✅ Added to catalog: {stats['added']}")
     print(f"  ❌ Filtered out:")
     print(f"     - Fetch failed (API error): {stats['fetch_failed']}")
+    if stats['fetch_404'] > 0:
+        print(f"       • 404 Not Found: {stats['fetch_404']}")
+    if stats['fetch_429'] > 0:
+        print(f"       • 429 Rate Limited: {stats['fetch_429']} (increase --delay)")
+    if stats['fetch_other_error'] > 0:
+        print(f"       • Other errors: {stats['fetch_other_error']}")
     if args.public_domain_only:
         print(f"     - Not public domain: {stats['not_public_domain']}")
     if args.filter_oil:
