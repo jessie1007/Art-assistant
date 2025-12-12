@@ -91,13 +91,13 @@ def fetch_ids_union(queries: Iterable[str], limit: Optional[int] = None) -> List
         ids = ids[:limit]
     return ids
 
-def fetch_object(obj_id: int) -> Optional[Dict]:
+def fetch_object(obj_id: int, require_public_domain: bool = False) -> Optional[Dict]:
     try:
         r = SESSION.get(MET_OBJECT.format(objectID=obj_id), timeout=30)
         if r.status_code != 200:
             return None
         obj = r.json()
-        if not obj.get("isPublicDomain", False):
+        if require_public_domain and not obj.get("isPublicDomain", False):
             return None
         return obj
     except Exception:
@@ -128,6 +128,8 @@ def main():
     ap.add_argument("--download-missing", action="store_true", help="download any images not already cached")
     ap.add_argument("--queries", nargs="*", default=["oil", "oil painting", "oil on canvas", "oil on wood","stilllife","painting", "portrait","landscape"])
     ap.add_argument("--thumb", action="store_true", help="use thumbnail images (primaryImageSmall) instead of full size")
+    ap.add_argument("--public-domain-only", action="store_true",
+                help="only include public domain artworks (default: include all)")
     ap.add_argument("--no-oil-filter", dest="filter_oil", action="store_false", default=True,
                 help="skip filtering for 'oil' in medium (get all paintings)")
     ap.add_argument("--metadata-only", dest="metadata_only", action="store_true",
@@ -144,19 +146,41 @@ def main():
     print(f"[info] candidate painting IDs: {len(ids)} from queries={args.queries}")
 
     rows = []
+    # Debug statistics
+    stats = {
+        "total": 0,
+        "fetch_failed": 0,
+        "not_public_domain": 0,
+        "oil_filtered": 0,
+        "no_image_url": 0,
+        "year_filtered": 0,
+        "download_failed": 0,
+        "image_not_local_skipped": 0,
+        "added": 0
+    }
+    
     for oid in tqdm(ids, desc="Rebuilding catalog"):
-        obj = fetch_object(oid)
+        stats["total"] += 1
+        obj = fetch_object(oid, require_public_domain=args.public_domain_only)
         if not obj:
+            stats["fetch_failed"] += 1
+            time.sleep(args.delay); continue
+        
+        # Check public domain if filter is on
+        if args.public_domain_only and not obj.get("isPublicDomain", False):
+            stats["not_public_domain"] += 1
             time.sleep(args.delay); continue
 
         # Optional: filter for oil paintings only (can be disabled with --no-oil-filter)
         if args.filter_oil:
             med = (obj.get("medium") or "").lower().replace("-", " ")
             if "oil" not in med:
+                stats["oil_filtered"] += 1
                 time.sleep(args.delay); continue
 
         url = obj.get("primaryImageSmall") if args.thumb else (obj.get("primaryImage") or obj.get("primaryImageSmall"))
         if not url:
+            stats["no_image_url"] += 1
             time.sleep(args.delay); continue
 
         # Parse year & century bin for diversity
@@ -165,8 +189,10 @@ def main():
 
         # Optional year bounds filter
         if args.min_year is not None and (y is None or y < args.min_year):
+            stats["year_filtered"] += 1
             time.sleep(args.delay); continue
         if args.max_year is not None and (y is None or y > args.max_year):
+            stats["year_filtered"] += 1
             time.sleep(args.delay); continue
 
         if args.metadata_only:
@@ -177,9 +203,11 @@ def main():
                 if args.download_missing:
                     saved = download_and_cache(url, longest_side=args.longest_side)
                     if not saved:
+                        stats["download_failed"] += 1
                         time.sleep(args.delay)
                         continue
                 else:
+                    stats["image_not_local_skipped"] += 1
                     time.sleep(args.delay)
                     continue
 
@@ -199,9 +227,28 @@ def main():
             "culture": obj.get("culture"),
             **({"local_path": local_path} if local_path else {}),
         })
-
+        stats["added"] += 1
 
         time.sleep(args.delay)
+    
+    # Print debug statistics
+    print(f"\n[Stats] Processing summary:")
+    print(f"  Total IDs processed: {stats['total']}")
+    print(f"  ✅ Added to catalog: {stats['added']}")
+    print(f"  ❌ Filtered out:")
+    print(f"     - Fetch failed (API error): {stats['fetch_failed']}")
+    if args.public_domain_only:
+        print(f"     - Not public domain: {stats['not_public_domain']}")
+    if args.filter_oil:
+        print(f"     - No oil in medium: {stats['oil_filtered']}")
+    print(f"     - No image URL: {stats['no_image_url']}")
+    if args.min_year or args.max_year:
+        print(f"     - Year out of range: {stats['year_filtered']}")
+    if not args.metadata_only:
+        if args.download_missing:
+            print(f"     - Image download failed: {stats['download_failed']}")
+        else:
+            print(f"     - Image not local (skipped): {stats['image_not_local_skipped']}")
 
     new_df = pd.DataFrame(rows)
 
@@ -239,7 +286,6 @@ def main():
     ]
     merged = merged[[c for c in ordered if c in merged.columns] + [c for c in merged.columns if c not in ordered]]
     # --- end normalize ---
-
 
     merged.to_parquet(PARQUET, index=False)
     print(f"[done] {len(merged)} rows -> {PARQUET}")
