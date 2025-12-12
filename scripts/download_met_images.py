@@ -15,7 +15,7 @@ Usage:
   python scripts/rebuild_met_catalog.py --download-missing --limit 20000
 """
 
-import os, io, time, argparse, hashlib
+import os, io, time, argparse, hashlib, json
 from pathlib import Path
 from typing import Optional, Dict, List, Iterable
 
@@ -29,7 +29,13 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 
-HEADERS = {"User-Agent": "ArtAssistant/1.0 (contact: you@example.com)"}
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.metmuseum.org/",
+    "Origin": "https://www.metmuseum.org"
+}
 YEAR_RE = re.compile(r"\b(\d{4})\b")
 
 def make_session(max_retries: int = 5, backoff: float = 0.5) -> requests.Session:
@@ -61,11 +67,13 @@ MET_OBJECT = "https://collectionapi.metmuseum.org/public/collection/v1/objects/{
 
 OUT_DIR = Path("data")
 IMG_DIR = OUT_DIR / "images"
+CACHE_DIR = OUT_DIR / "cache" / "objects"
 PARQUET = OUT_DIR / "corpus" / "met_oil_paintings.parquet"
 
 def ensure_dirs():
     (OUT_DIR / "corpus").mkdir(parents=True, exist_ok=True)
     IMG_DIR.mkdir(parents=True, exist_ok=True)
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 def _safe_name(text: str) -> str:
     return hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
@@ -91,7 +99,19 @@ def fetch_ids_union(queries: Iterable[str], limit: Optional[int] = None) -> List
         ids = ids[:limit]
     return ids
 
-def fetch_object(obj_id: int, require_public_domain: bool = False, debug: bool = False) -> tuple[Optional[Dict], Optional[int], Optional[str]]:
+def fetch_object(obj_id: int, require_public_domain: bool = False, use_cache: bool = True) -> tuple[Optional[Dict], Optional[int], Optional[str]]:
+    cache_path = CACHE_DIR / f"{obj_id}.json"
+    
+    if use_cache and cache_path.exists():
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                obj = json.load(f)
+            if require_public_domain and not obj.get("isPublicDomain", False):
+                return None, None, "Not public domain"
+            return obj, None, None
+        except Exception:
+            pass
+    
     try:
         r = SESSION.get(MET_OBJECT.format(objectID=obj_id), timeout=30)
         if r.status_code != 200:
@@ -102,6 +122,14 @@ def fetch_object(obj_id: int, require_public_domain: bool = False, debug: bool =
             return None, None, f"JSON decode error: {str(e)}"
         if not obj or not isinstance(obj, dict):
             return None, None, "Response not a dict"
+        
+        if use_cache:
+            try:
+                with open(cache_path, "w", encoding="utf-8") as f:
+                    json.dump(obj, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+        
         if require_public_domain and not obj.get("isPublicDomain", False):
             return None, None, "Not public domain"
         return obj, None, None
@@ -143,6 +171,8 @@ def main():
                 help="skip filtering for 'oil' in medium (get all paintings)")
     ap.add_argument("--metadata-only", dest="metadata_only", action="store_true",
                 help="build catalog from URLs only, skip downloads")
+    ap.add_argument("--no-cache", dest="use_cache", action="store_false", default=True,
+                help="disable object metadata caching (fetch from API every time)")
     ap.add_argument("--min-year", type=int, default=None, help="keep items with parsed year >= this")
     ap.add_argument("--max-year", type=int, default=None, help="keep items with parsed year <= this")
     ap.add_argument("--balance-by-century", action="store_true", help="after collection, sample up to --per-century per century bin")
@@ -158,8 +188,11 @@ def main():
     # Debug statistics
     stats = {
         "total": 0,
+        "from_cache": 0,
+        "from_api": 0,
         "fetch_failed": 0,
         "fetch_404": 0,
+        "fetch_403": 0,
         "fetch_429": 0,
         "fetch_other_error": 0,
         "fetch_timeout": 0,
@@ -177,11 +210,22 @@ def main():
     
     for oid in tqdm(ids, desc="Rebuilding catalog"):
         stats["total"] += 1
-        obj, status_code, error_msg = fetch_object(oid, require_public_domain=args.public_domain_only)
+        cache_path = CACHE_DIR / f"{oid}.json"
+        was_cached = args.use_cache and cache_path.exists()
+        
+        obj, status_code, error_msg = fetch_object(oid, require_public_domain=args.public_domain_only, use_cache=args.use_cache)
+        if was_cached:
+            stats["from_cache"] += 1
+        else:
+            stats["from_api"] += 1
+        
         if not obj:
             stats["fetch_failed"] += 1
             if status_code == 404:
                 stats["fetch_404"] += 1
+            elif status_code == 403:
+                stats["fetch_403"] += 1
+                time.sleep(args.delay * 5)
             elif status_code == 429:
                 stats["fetch_429"] += 1
                 time.sleep(args.delay * 10)
@@ -265,11 +309,16 @@ def main():
     # Print debug statistics
     print(f"\n[Stats] Processing summary:")
     print(f"  Total IDs processed: {stats['total']}")
+    if args.use_cache:
+        print(f"  📦 Loaded from cache: {stats['from_cache']}")
+        print(f"  🌐 Fetched from API: {stats['from_api']}")
     print(f"  ✅ Added to catalog: {stats['added']}")
     print(f"  ❌ Filtered out:")
     print(f"     - Fetch failed (API error): {stats['fetch_failed']}")
     if stats['fetch_404'] > 0:
         print(f"       • 404 Not Found: {stats['fetch_404']}")
+    if stats['fetch_403'] > 0:
+        print(f"       • 403 Forbidden: {stats['fetch_403']} (API blocking access - may need better headers)")
     if stats['fetch_429'] > 0:
         print(f"       • 429 Rate Limited: {stats['fetch_429']} (increase --delay)")
     if stats['fetch_other_error'] > 0:
