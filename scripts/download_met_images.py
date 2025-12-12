@@ -91,21 +91,26 @@ def fetch_ids_union(queries: Iterable[str], limit: Optional[int] = None) -> List
         ids = ids[:limit]
     return ids
 
-def fetch_object(obj_id: int, require_public_domain: bool = False) -> tuple[Optional[Dict], Optional[int]]:
+def fetch_object(obj_id: int, require_public_domain: bool = False, debug: bool = False) -> tuple[Optional[Dict], Optional[int], Optional[str]]:
     try:
         r = SESSION.get(MET_OBJECT.format(objectID=obj_id), timeout=30)
         if r.status_code != 200:
-            return None, r.status_code
-        obj = r.json()
+            return None, r.status_code, f"HTTP {r.status_code}"
+        try:
+            obj = r.json()
+        except ValueError as e:
+            return None, None, f"JSON decode error: {str(e)}"
         if not obj or not isinstance(obj, dict):
-            return None, None
+            return None, None, "Response not a dict"
         if require_public_domain and not obj.get("isPublicDomain", False):
-            return None, None
-        return obj, None
+            return None, None, "Not public domain"
+        return obj, None, None
+    except requests.exceptions.Timeout:
+        return None, None, "Timeout"
     except requests.exceptions.RequestException as e:
-        return None, None
+        return None, None, f"Request error: {str(e)}"
     except Exception as e:
-        return None, None
+        return None, None, f"Unexpected error: {str(e)}"
 
 def download_and_cache(url: str, longest_side: int = 512) -> Optional[str]:
     out_path = expected_local_path(url)
@@ -157,6 +162,9 @@ def main():
         "fetch_404": 0,
         "fetch_429": 0,
         "fetch_other_error": 0,
+        "fetch_timeout": 0,
+        "fetch_json_error": 0,
+        "fetch_not_dict": 0,
         "not_public_domain": 0,
         "oil_filtered": 0,
         "no_image_url": 0,
@@ -165,10 +173,11 @@ def main():
         "image_not_local_skipped": 0,
         "added": 0
     }
+    error_samples = {"timeout": [], "json_error": [], "not_dict": [], "other": []}
     
     for oid in tqdm(ids, desc="Rebuilding catalog"):
         stats["total"] += 1
-        obj, status_code = fetch_object(oid, require_public_domain=args.public_domain_only)
+        obj, status_code, error_msg = fetch_object(oid, require_public_domain=args.public_domain_only)
         if not obj:
             stats["fetch_failed"] += 1
             if status_code == 404:
@@ -176,8 +185,16 @@ def main():
             elif status_code == 429:
                 stats["fetch_429"] += 1
                 time.sleep(args.delay * 10)
-            elif status_code:
+            elif error_msg:
                 stats["fetch_other_error"] += 1
+                if "Timeout" in error_msg and len(error_samples["timeout"]) < 3:
+                    error_samples["timeout"].append(f"ID {oid}: {error_msg}")
+                elif "JSON" in error_msg and len(error_samples["json_error"]) < 3:
+                    error_samples["json_error"].append(f"ID {oid}: {error_msg}")
+                elif "not a dict" in error_msg and len(error_samples["not_dict"]) < 3:
+                    error_samples["not_dict"].append(f"ID {oid}: {error_msg}")
+                elif len(error_samples["other"]) < 3:
+                    error_samples["other"].append(f"ID {oid}: {error_msg}")
             time.sleep(args.delay); continue
         
         # Check public domain if filter is on
@@ -257,6 +274,14 @@ def main():
         print(f"       • 429 Rate Limited: {stats['fetch_429']} (increase --delay)")
     if stats['fetch_other_error'] > 0:
         print(f"       • Other errors: {stats['fetch_other_error']}")
+        if error_samples["timeout"]:
+            print(f"         - Timeout examples: {error_samples['timeout']}")
+        if error_samples["json_error"]:
+            print(f"         - JSON error examples: {error_samples['json_error']}")
+        if error_samples["not_dict"]:
+            print(f"         - Not dict examples: {error_samples['not_dict']}")
+        if error_samples["other"]:
+            print(f"         - Other error examples: {error_samples['other']}")
     if args.public_domain_only:
         print(f"     - Not public domain: {stats['not_public_domain']}")
     if args.filter_oil:
