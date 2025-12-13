@@ -32,7 +32,11 @@ def main():
     
     for idx, row in df.iterrows():
         local_path = row.get("local_path")
-        if local_path and isinstance(local_path, str) and os.path.exists(local_path):
+        # Check for pandas NA/NaN values first
+        if pd.isna(local_path):
+            continue
+        # Then check if it's a string and file exists
+        if isinstance(local_path, str) and local_path.strip() and os.path.exists(local_path):
             paths.append(local_path)
             metadata_rows.append(row.to_dict())
         
