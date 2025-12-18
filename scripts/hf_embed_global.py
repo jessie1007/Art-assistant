@@ -11,6 +11,9 @@ MODEL_NAME = "openai/clip-vit-base-patch32"
 @lru_cache(maxsize=1)
 def _load_models():
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"[info] Using device: {device}")
+    if device == "cuda":
+        print(f"[info] GPU: {torch.cuda.get_device_name(0)}")
     model = CLIPModel.from_pretrained(MODEL_NAME).to(device).eval()
     proc  = CLIPProcessor.from_pretrained(MODEL_NAME)
     return model, proc, device

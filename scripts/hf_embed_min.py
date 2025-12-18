@@ -103,7 +103,8 @@ def main():
         print("ERROR: No images could be loaded.")
         return
     
-    # 4) Embed images
+    # 4) Embed images (will use GPU if available)
+    print(f"Embedding {len(images)} images...")
     mat = embed_images(images)  # (N,D) float32, L2-normalized
 
     # 5) Save embeddings and metadata
