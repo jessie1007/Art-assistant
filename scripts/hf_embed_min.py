@@ -11,7 +11,9 @@ if str(ROOT) not in sys.path:
 
 
 
-IMG_DIR = Path("data/images")
+# Resolve IMG_DIR relative to project root (works in Colab and local)
+ROOT = Path(__file__).resolve().parents[1]
+IMG_DIR = ROOT / "data" / "images"
 
 def _safe_name(text: str) -> str:
     return hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
@@ -46,22 +48,33 @@ def main():
         image_url = row.get("image_url")
 
         # Skip pandas NA / missing values safely
-        if local_path is not None and hasattr(pd, "isna") and pd.isna(local_path):
+        if local_path is not None and pd.isna(local_path):
             local_path = None
 
-        # 1) Prefer an existing local_path on disk
-        if isinstance(local_path, str) and local_path.strip() and os.path.exists(local_path):
-            paths.append(local_path)
-            metadata_rows.append(row.to_dict())
+        found_path = None
+        
+        # 1) Prefer an existing local_path on disk (resolve relative paths)
+        if isinstance(local_path, str) and local_path.strip():
+            # If relative path, resolve relative to ROOT
+            if not os.path.isabs(local_path):
+                resolved_path = ROOT / local_path
+            else:
+                resolved_path = Path(local_path)
+            
+            if resolved_path.exists():
+                found_path = str(resolved_path)
 
         # 2) Otherwise, derive expected path from image_url and use it if it exists
-        elif isinstance(image_url, str) and image_url.strip():
+        if not found_path and isinstance(image_url, str) and image_url.strip():
             derived = expected_local_path_from_url(image_url)
             if os.path.exists(derived):
-                meta = row.to_dict()
-                meta["local_path"] = derived
-                paths.append(derived)
-                metadata_rows.append(meta)
+                found_path = derived
+        
+        if found_path:
+            meta = row.to_dict()
+            meta["local_path"] = found_path  # Store absolute or resolved path
+            paths.append(found_path)
+            metadata_rows.append(meta)
 
         if len(paths) >= args.limit:
             break
