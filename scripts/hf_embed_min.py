@@ -3,11 +3,22 @@ from pathlib import Path
 import numpy as np, pandas as pd
 from PIL import Image
 import torch
-
+import hashlib
 # Add project root to path for Colab compatibility
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+
+
+IMG_DIR = Path("data/images")
+
+def _safe_name(text: str) -> str:
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
+
+def expected_local_path_from_url(url: str) -> str:
+    return str((IMG_DIR / (_safe_name(url) + ".jpg")).as_posix())
+
 
 # Use hf_embed_global for CLIP embeddings
 try:
@@ -26,22 +37,35 @@ def main():
     # 1) Load parquet file
     df = pd.read_parquet(args.parquet)
     
-    # 2) Get local_path entries that exist (images should be in Drive)
+    # 2) Collect valid image paths (prefer existing local_path, fall back to derived path)
     paths = []
     metadata_rows = []
     
     for idx, row in df.iterrows():
         local_path = row.get("local_path")
-        # Check for pandas NA/NaN values first
-        if pd.isna(local_path):
-            continue
-        # Then check if it's a string and file exists
+        image_url = row.get("image_url")
+
+        # Skip pandas NA / missing values safely
+        if local_path is not None and hasattr(pd, "isna") and pd.isna(local_path):
+            local_path = None
+
+        # 1) Prefer an existing local_path on disk
         if isinstance(local_path, str) and local_path.strip() and os.path.exists(local_path):
             paths.append(local_path)
             metadata_rows.append(row.to_dict())
-        
+
+        # 2) Otherwise, derive expected path from image_url and use it if it exists
+        elif isinstance(image_url, str) and image_url.strip():
+            derived = expected_local_path_from_url(image_url)
+            if os.path.exists(derived):
+                meta = row.to_dict()
+                meta["local_path"] = derived
+                paths.append(derived)
+                metadata_rows.append(meta)
+
         if len(paths) >= args.limit:
             break
+
     
     if not paths:
         print("ERROR: No valid images found. Check if local_path exists in parquet and files are in Drive.")
