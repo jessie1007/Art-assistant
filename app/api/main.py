@@ -14,6 +14,7 @@ Features:
 """
 
 import sys
+import os
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import json
@@ -63,9 +64,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Default paths
-DEFAULT_INDEX_PATH = ROOT / "data/index_samples/index.faiss"
-DEFAULT_META_PATH = ROOT / "data/index_samples/meta.npy"
+# Default paths (can be overridden via environment variables)
+# This allows artifacts to be loaded from external storage (S3, persistent disk, etc.)
+# without needing to rebuild them locally or include them in the Docker image
+DEFAULT_INDEX_PATH = Path(os.getenv("FAISS_INDEX_PATH", str(ROOT / "data/index_samples/index.faiss")))
+DEFAULT_META_PATH = Path(os.getenv("FAISS_META_PATH", str(ROOT / "data/index_samples/meta.npy")))
 
 # Global variables for loaded index and metadata
 _index = None

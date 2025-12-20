@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  art-assistant-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: art-assistant-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount data directory (FAISS index, metadata, images)
+      - ./data:/app/data:ro  # Read-only for security
+    environment:
+      - ART_ASSISTANT_API_URL=http://localhost:8000
+      # Optional: Override artifact paths if needed
+      # - FAISS_INDEX_PATH=/app/data/index_samples/index.faiss
+      # - FAISS_META_PATH=/app/data/index_samples/meta.npy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+

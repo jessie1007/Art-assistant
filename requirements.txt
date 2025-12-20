@@ -22,3 +22,6 @@ fastapi
 uvicorn[standard]
 python-multipart
 slowapi  # Rate limiting
+
+# Additional for production
+gunicorn  # Alternative WSGI server (optional)
