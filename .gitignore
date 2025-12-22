@@ -11,8 +11,10 @@ data/images
 data/images/
 data/corpus/
 data/embeddings_samples/
-data/index_samples/
 data/samples/
+data/raw/
+# Allow index_samples for deployment (small files, needed for Render free tier)
+# data/index_samples/ - NOT ignored, needed for Render free tier
 
 # Ignore virtual env
 .venv/
@@ -30,9 +32,20 @@ docs/WHY_FEATURES.md
 docs/WHY_FASTAPI.md
 docs/*.md
 
-data/
+# Ignore data files, but allow index_samples for deployment
+# Note: Can't use data/ and then un-ignore, so we're specific instead
+data/corpus/*.parquet
+data/embeddings_samples/*
+data/images/*
+data/samples/*
+data/raw/*
+# Allow index_samples (needed for Render free tier deployment)
+# data/index_samples/ is NOT ignored
 *.parquet
-*.npy
-*.faiss
+# Allow .npy and .faiss files in index_samples directory
+data/**/*.npy
+data/**/*.faiss
+!data/index_samples/*.npy
+!data/index_samples/*.faiss
 __pycache__/
 *.pyc
