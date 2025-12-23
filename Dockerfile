@@ -34,6 +34,8 @@ WORKDIR /app
 # Copy application code
 COPY --chown=appuser:appuser app/ ./app/
 COPY --chown=appuser:appuser scripts/ ./scripts/
+# Copy data files (index and metadata)
+COPY --chown=appuser:appuser data/ ./data/
 
 # Set PATH to include user local bin
 ENV PATH=/home/appuser/.local/bin:$PATH
